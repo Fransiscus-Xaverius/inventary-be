@@ -1,15 +1,126 @@
 package handlers
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
+	"math"
 	"net/http"
-	"strings"
 	"time"
+	"strconv"
 
+	Product "github.com/everysoft/inventary-be/app/master_product"
+	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
+func GetAllProducts(c *gin.Context) {
+	// Read query params
+	limitStr := c.DefaultQuery("limit", "10")
+	offsetStr := c.DefaultQuery("offset", "0")
 
+	limit, err1 := strconv.Atoi(limitStr)
+	offset, err2 := strconv.Atoi(offsetStr)
+
+	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		return
+	}
+
+	// Get current page from offset
+	page := (offset / limit) + 1
+
+	// Fetch total count
+	totalCount, err := db.CountAllProducts()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count products"})
+		return
+	}
+
+	// Calculate total pages
+	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
+
+	// Fetch paginated products
+	products, err := db.FetchAllProducts(limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch products"})
+		return
+	}
+
+	// Respond with pagination metadata
+	c.JSON(http.StatusOK, gin.H{
+		"products":   products,
+		"page":       page,
+		"total_page": totalPages,
+	})
+}
+
+
+
+func GetProductByArtikel(c *gin.Context) {
+	artikel := c.Param("artikel")
+	product, err := db.FetchProductByArtikel(artikel)
+
+	if err != nil {
+		if err.Error() == "not_found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch product"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, product)
+}
+
+func CreateProduct(c *gin.Context) {
+	var product Product.Product
+	if err := c.ShouldBindJSON(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	product.TanggalUpdate = time.Now()
+	err := db.InsertProduct(&product)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, product)
+}
+
+func UpdateProduct(c *gin.Context) {
+	artikel := c.Param("artikel")
+	var product Product.Product
+
+	if err := c.ShouldBindJSON(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	product.TanggalUpdate = time.Now()
+	updatedProduct, err := db.UpdateProduct(artikel, &product)
+	if err != nil {
+		if err.Error() == "not_found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedProduct)
+}
+
+func DeleteProduct(c *gin.Context) {
+	artikel := c.Param("artikel")
+	err := db.DeleteProduct(artikel)
+	if err != nil {
+		if err.Error() == "not_found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete product"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Product deleted successfully"})
+}

@@ -25,22 +25,12 @@ func SetupRoutes() *gin.Engine {
 		}
 
 		
-		// products := api.Group("/products")
-		// {
-		// 	products.GET("/", handlers.GetProducts)
-		// 	products.POST("/", handlers.CreateProduct)
-		// }
-	}
-
-	// Health check with Gin native handler
-	router.GET("/health", HealthCheck)
-
-	// Protected routes group
-	protected := router.Group("/api/protected")
-	protected.Use(AuthMiddleware()) // Updated middleware
-	{
-		protected.GET("/profile", GetProfile)
-		// Add more protected routes...
+		products := api.Group("/products")
+		products.Use(AuthMiddleware())
+		{
+			products.GET("/", handlers.GetAllProducts)
+			products.POST("/", handlers.CreateProduct)
+		}
 	}
 
 	return router
