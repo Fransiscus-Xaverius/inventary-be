@@ -15,12 +15,8 @@ import (
 	settings "github.com/everysoft/inventary-be/settings"
 )
 
-const (
-	serviceName = "inventary-yk.co.id"
-)
-
 func main() {
-	log.Printf("Starting %s service...", serviceName)
+	log.Printf("Starting YK InventaryBE service...")
 	
 	// Load configuration
 	config, err := settings.LoadConfig("config.yaml")
@@ -40,15 +36,15 @@ func main() {
 		log.Fatalf("Failed to create database tables: %v", err)
 	}
 	
-	// Setup routes
-	mux := server.SetupRoutes()
+	// Setup routes - this will return *gin.Engine instead of *http.ServeMux
+	router := server.SetupRoutes()
 	
 	// Create server
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // Default port
+		port = "8080"
 	}
-	srv := server.CreateServer(port, mux)
+	srv := server.CreateServer(port, router)
 	
 	// Run server in a goroutine so it doesn't block
 	go func() {

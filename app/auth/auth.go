@@ -1,6 +1,5 @@
 package auth
 
-
 import (
 	"errors"
 	"fmt"
@@ -8,23 +7,24 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	// setting "github.com/everysoft/inventary-be/settings" 
 )
 
 var (
-    // Using environment variable for JWT secret is more secure
-    // Default to a fallback value if not set
-    jwtSecret = []byte(getEnvOrDefault("JWT_SECRET", "changethislateronproductionwithenv"))
-    
-    // Token expiration time
-    tokenExpiration = getEnvOrDefaultDuration("JWT_EXPIRATION", 24*time.Hour)    
-    // Common errors
-    ErrInvalidCredentials = errors.New("invalid credentials")
-    ErrUserExists         = errors.New("user already exists")
-    ErrInvalidToken       = errors.New("invalid or expired token")
+	// Using environment variable for JWT secret is more secure
+	// Default to a fallback value if not set
+	jwtSecret = []byte(getEnvOrDefault("JWT_SECRET", "changethislateronproductionwithenv"))
+	
+	// Token expiration time
+	tokenExpiration = getEnvOrDefaultDuration("JWT_EXPIRATION", 24*time.Hour)    
+	
+	// Common errors
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserExists         = errors.New("user already exists")
+	ErrInvalidToken       = errors.New("invalid or expired token")
 )
 
 // User represents authentication user model
@@ -47,15 +47,15 @@ type Claims struct {
 
 // LoginRequest represents login credentials
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 // RegisterRequest represents registration data
 type RegisterRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
 }
 
 // TokenResponse is returned on successful authentication
@@ -105,9 +105,7 @@ func GenerateToken(user User) (string, time.Time, error) {
 
 // ValidateToken validates and parses the JWT token
 func ValidateToken(tokenString string) (*Claims, error) {
-	// Parse and validate the token
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// Validate signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -118,7 +116,6 @@ func ValidateToken(tokenString string) (*Claims, error) {
 		return nil, err
 	}
 
-	// Extract claims
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
@@ -126,25 +123,71 @@ func ValidateToken(tokenString string) (*Claims, error) {
 	return nil, ErrInvalidToken
 }
 
-// ExtractTokenFromRequest extracts the JWT token from an HTTP request
-func ExtractTokenFromRequest(r *http.Request) string {
+// ExtractTokenFromGinContext extracts the JWT token from a Gin context
+func ExtractTokenFromGinContext(c *gin.Context) string {
 	// Check Authorization header first
-	bearerToken := r.Header.Get("Authorization")
+	bearerToken := c.GetHeader("Authorization")
 	if len(bearerToken) > 7 && bearerToken[:7] == "Bearer " {
 		return bearerToken[7:]
 	}
 
 	// Then check cookie
-	cookie, err := r.Cookie("auth_token")
+	token, err := c.Cookie("auth_token")
 	if err == nil {
-		return cookie.Value
+		return token
 	}
 
 	// Finally check URL query parameter
-	return r.URL.Query().Get("token")
+	return c.Query("token")
 }
 
-// Helper function to get environment variable or default value
+// GetUserFromContext extracts the user information from Gin context
+func GetUserFromContext(c *gin.Context) (*User, error) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		return nil, errors.New("user not found in context")
+	}
+
+	user := &User{
+		ID:       userID.(string),
+		Username: c.GetString("username"),
+		Email:    c.GetString("email"),
+		Role:     c.GetString("role"),
+	}
+
+	return user, nil
+}
+
+// AuthMiddleware creates a Gin middleware for JWT authentication
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := ExtractTokenFromGinContext(c)
+		if token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "no token provided",
+			})
+			return
+		}
+
+		claims, err := ValidateToken(token)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token",
+			})
+			return
+		}
+
+		// Set claims in context
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
+
+		c.Next()
+	}
+}
+
+// Helper functions remain unchanged
 func getEnvOrDefault(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
@@ -152,7 +195,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// Helper function to get environment variable as duration or default value
 func getEnvOrDefaultDuration(key string, defaultValue time.Duration) time.Duration {
 	if value, exists := os.LookupEnv(key); exists {
 		if duration, err := time.ParseDuration(value); err == nil {

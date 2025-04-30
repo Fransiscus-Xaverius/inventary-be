@@ -4,43 +4,103 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/everysoft/inventary-be/app/handlers"
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes() *http.ServeMux {
-	mux := http.NewServeMux()
-	
-	// Public routes
-	mux.HandleFunc("/api/auth/register", handlers.RegisterHandler)
-	mux.HandleFunc("/api/auth/login", handlers.LoginHandler)
-	
-	// Public health check
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+func SetupRoutes() *gin.Engine {
+	router := gin.Default()
+
+	// Better CORS middleware configuration
+	router.Use(CORSMiddleware())
+
+	// Public routes group
+	api := router.Group("/api")
+	{
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", handlers.RegisterHandler) // You'll need to update these handler functions
+			auth.POST("/login", handlers.LoginHandler)      // to use gin.Context instead of http.HandlerFunc
+		}
+
+		
+		// products := api.Group("/products")
+		// {
+		// 	products.GET("/", handlers.GetProducts)
+		// 	products.POST("/", handlers.CreateProduct)
+		// }
+	}
+
+	// Health check with Gin native handler
+	router.GET("/health", HealthCheck)
+
+	// Protected routes group
+	protected := router.Group("/api/protected")
+	protected.Use(AuthMiddleware()) // Updated middleware
+	{
+		protected.GET("/profile", GetProfile)
+		// Add more protected routes...
+	}
+
+	return router
+}
+
+// CORSMiddleware handles CORS
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusOK)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// HealthCheck handler using Gin native syntax
+func HealthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "OK",
+		"time":   time.Now(),
 	})
-	
-	// Protected routes - API endpoints that require authentication
-	protectedMux := http.NewServeMux()
-	
-	// Example protected endpoint
-	protectedMux.HandleFunc("/profile", func(w http.ResponseWriter, r *http.Request) {
-		handlers.RespondWithJSON(w, http.StatusOK, map[string]string{
-			"message": "You have access to protected content",
-			"user_id": r.Header.Get("X-User-ID"),
-			"role":    r.Header.Get("X-User-Role"),
-		})
+}
+
+// GetProfile handler using Gin native syntax
+func GetProfile(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"message": "You have access to protected content",
+		"user_id": c.GetHeader("X-User-ID"),
+		"role":    c.GetHeader("X-User-Role"),
 	})
-	
-	// Apply auth middleware to protected routes
-	mux.Handle("/api/protected/", handlers.AuthMiddleware(http.StripPrefix("/api/protected", protectedMux)))
-	
-	return mux
+}
+
+// AuthMiddleware using Gin native syntax
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.GetHeader("Authorization")
+		if token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "unauthorized",
+			})
+			return
+		}
+
+		// Add your token validation logic here
+		// You might want to set some values in the context
+		// c.Set("user_id", userID)
+		// c.Set("user_role", userRole)
+
+		c.Next()
+	}
 }
 
 // CreateServer creates a configured HTTP server
-func CreateServer(port string, handler http.Handler) *http.Server {
+func CreateServer(port string, handler *gin.Engine) *http.Server {
 	return &http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,
