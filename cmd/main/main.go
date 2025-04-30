@@ -35,6 +35,10 @@ func main() {
 	if err := db.CreateUsersTableIfNotExists(); err != nil {
 		log.Fatalf("Failed to create database tables: %v", err)
 	}
+
+	if err = db.CreateMasterProductsTableIfNotExists(); err != nil {
+		log.Fatalf("Failed to create database tables: %v", err)
+	}
 	
 	// Setup routes - this will return *gin.Engine instead of *http.ServeMux
 	router := server.SetupRoutes()
