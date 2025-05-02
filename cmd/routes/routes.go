@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/everysoft/inventary-be/app/handlers"
+	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes configures all API routes
@@ -24,6 +24,8 @@ func SetupRoutes() *gin.Engine {
 			auth.POST("/login", handlers.LoginHandler)      // to use gin.Context instead of http.HandlerFunc
 		}
 
+		// Filters endpoint - accessible without authentication
+		api.GET("/filters", handlers.GetFilterOptions)
 		
 		products := api.Group("/products")
 		products.Use(AuthMiddleware())

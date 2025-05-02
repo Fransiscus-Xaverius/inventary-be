@@ -3,8 +3,8 @@ package handlers
 import (
 	"math"
 	"net/http"
-	"time"
 	"strconv"
+	"time"
 
 	Product "github.com/everysoft/inventary-be/app/master_product"
 	"github.com/everysoft/inventary-be/db"
@@ -15,6 +15,9 @@ func GetAllProducts(c *gin.Context) {
 	// Read query params
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
+	queryStr := c.DefaultQuery("q", "")
+	sortColumn := c.DefaultQuery("sort", "no")
+	sortDirection := c.DefaultQuery("order", "asc")
 
 	limit, err1 := strconv.Atoi(limitStr)
 	offset, err2 := strconv.Atoi(offsetStr)
@@ -27,8 +30,18 @@ func GetAllProducts(c *gin.Context) {
 	// Get current page from offset
 	page := (offset / limit) + 1
 
-	// Fetch total count
-	totalCount, err := db.CountAllProducts()
+	// Extract filter parameters
+	filters := make(map[string]string)
+	validFilterFields := []string{"warna", "size", "grup", "unit", "kat", "model", "gender", "tipe", "status", "supplier"}
+	
+	for _, field := range validFilterFields {
+		if value := c.Query(field); value != "" {
+			filters[field] = value
+		}
+	}
+
+	// Fetch total count with filters applied
+	totalCount, err := db.CountAllProducts(queryStr, filters)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count products"})
 		return
@@ -37,8 +50,8 @@ func GetAllProducts(c *gin.Context) {
 	// Calculate total pages
 	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 
-	// Fetch paginated products
-	products, err := db.FetchAllProducts(limit, offset)
+	// Fetch paginated products with filters applied
+	products, err := db.FetchAllProducts(limit, offset, queryStr, filters, sortColumn, sortDirection)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch products"})
 		return
@@ -49,10 +62,12 @@ func GetAllProducts(c *gin.Context) {
 		"products":   products,
 		"page":       page,
 		"total_page": totalPages,
+		"filters":    filters,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
-
-
 
 func GetProductByArtikel(c *gin.Context) {
 	artikel := c.Param("artikel")
@@ -123,4 +138,19 @@ func DeleteProduct(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Product deleted successfully"})
+}
+
+// GetFilterOptions returns all unique values for filterable fields
+func GetFilterOptions(c *gin.Context) {
+	// Fetch all filter options from the database
+	filterOptions, err := db.FetchFilterOptions()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch filter options: " + err.Error()})
+		return
+	}
+
+	// Return the filter options
+	c.JSON(http.StatusOK, gin.H{
+		"fields": filterOptions,
+	})
 }
