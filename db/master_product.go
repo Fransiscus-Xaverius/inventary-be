@@ -60,16 +60,31 @@ func CreateMasterProductsTableIfNotExists() error {
 	return nil
 }
 
-func FetchAllProducts(limit, offset int) ([]master_product.Product, error) {
+func FetchAllProducts(limit, offset int, queryStr string) ([]master_product.Product, error) {
 	products := []master_product.Product{}
 
 	query := `
 	SELECT no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, usia, status, supplier, diupdate_oleh, tanggal_update
 	FROM master_products
+	WHERE artikel ILIKE '%' || $3 || '%' 
+		OR warna ILIKE '%' || $3 || '%' 
+		OR size ILIKE '%' || $3 || '%' 
+		OR grup ILIKE '%' || $3 || '%' 
+		OR unit ILIKE '%' || $3 || '%' 
+		OR kat ILIKE '%' || $3 || '%' 
+		OR model ILIKE '%' || $3 || '%'
+		OR gender ILIKE '%' || $3 || '%'
+		OR tipe ILIKE '%' || $3 || '%'
+		OR CAST(harga AS TEXT) ILIKE '%' || $3 || '%' 
+		OR CAST(no AS TEXT) ILIKE '%' || $3 || '%'      
+		OR CAST(usia AS TEXT) ILIKE '%' || $3 || '%'    
+		OR status ILIKE '%' || $3 || '%'
+		OR supplier ILIKE '%' || $3 || '%'
+		OR diupdate_oleh ILIKE '%' || $3 || '%'
 	ORDER BY no
 	LIMIT $1 OFFSET $2`
 
-	rows, err := DB.Query(query, limit, offset)
+	rows, err := DB.Query(query, limit, offset, queryStr)
 	if err != nil {
 		return nil, err
 	}

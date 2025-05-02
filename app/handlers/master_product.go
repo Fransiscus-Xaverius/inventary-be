@@ -3,8 +3,8 @@ package handlers
 import (
 	"math"
 	"net/http"
-	"time"
 	"strconv"
+	"time"
 
 	Product "github.com/everysoft/inventary-be/app/master_product"
 	"github.com/everysoft/inventary-be/db"
@@ -15,6 +15,7 @@ func GetAllProducts(c *gin.Context) {
 	// Read query params
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
+	queryStr := c.DefaultQuery("q", "")
 
 	limit, err1 := strconv.Atoi(limitStr)
 	offset, err2 := strconv.Atoi(offsetStr)
@@ -38,7 +39,7 @@ func GetAllProducts(c *gin.Context) {
 	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 
 	// Fetch paginated products
-	products, err := db.FetchAllProducts(limit, offset)
+	products, err := db.FetchAllProducts(limit, offset, queryStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch products"})
 		return
@@ -51,8 +52,6 @@ func GetAllProducts(c *gin.Context) {
 		"total_page": totalPages,
 	})
 }
-
-
 
 func GetProductByArtikel(c *gin.Context) {
 	artikel := c.Param("artikel")
