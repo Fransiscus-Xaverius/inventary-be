@@ -16,6 +16,8 @@ func GetAllProducts(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
 	queryStr := c.DefaultQuery("q", "")
+	sortColumn := c.DefaultQuery("sort", "no")
+	sortDirection := c.DefaultQuery("order", "asc")
 
 	limit, err1 := strconv.Atoi(limitStr)
 	offset, err2 := strconv.Atoi(offsetStr)
@@ -49,7 +51,7 @@ func GetAllProducts(c *gin.Context) {
 	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 
 	// Fetch paginated products with filters applied
-	products, err := db.FetchAllProducts(limit, offset, queryStr, filters)
+	products, err := db.FetchAllProducts(limit, offset, queryStr, filters, sortColumn, sortDirection)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch products"})
 		return
@@ -62,6 +64,8 @@ func GetAllProducts(c *gin.Context) {
 		"total_page": totalPages,
 		"filters":    filters,
 		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 

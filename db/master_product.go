@@ -99,7 +99,7 @@ func CreateMasterProductsTableIfNotExists() error {
 	return nil
 }
 
-func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string) ([]master_product.Product, error) {
+func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]master_product.Product, error) {
 	products := []master_product.Product{}
 
 	// Start building the query with parameters
@@ -147,8 +147,30 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 		}
 	}
 	
+	// Add sorting
+	orderBy := " ORDER BY "
+	// Map of valid column names to prevent SQL injection
+	validColumns := map[string]bool{
+		"no": true, "artikel": true, "warna": true, "size": true, "grup": true,
+		"unit": true, "kat": true, "model": true, "gender": true, "tipe": true,
+		"harga": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
+		"status": true, "supplier": true, "diupdate_oleh": true, "tanggal_update": true,
+	}
+	
+	// Default sort
+	if sortColumn == "" || !validColumns[sortColumn] {
+		sortColumn = "no"
+	}
+	
+	// Default direction
+	if sortDirection != "asc" && sortDirection != "desc" {
+		sortDirection = "asc"
+	}
+	
+	orderBy += sortColumn + " " + sortDirection
+	
 	// Add pagination
-	paginationQuery := ` ORDER BY no LIMIT $` + fmt.Sprintf("%d", paramCount) + ` OFFSET $` + fmt.Sprintf("%d", paramCount+1)
+	paginationQuery := orderBy + ` LIMIT $` + fmt.Sprintf("%d", paramCount) + ` OFFSET $` + fmt.Sprintf("%d", paramCount+1)
 	baseQuery += paginationQuery
 	args = append(args, limit, offset)
 
