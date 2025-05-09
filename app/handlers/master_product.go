@@ -104,21 +104,104 @@ func CreateProduct(c *gin.Context) {
 
 func UpdateProduct(c *gin.Context) {
 	artikel := c.Param("artikel")
-	var product Product.Product
 
-	if err := c.ShouldBindJSON(&product); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	product.TanggalUpdate = time.Now()
-	updatedProduct, err := db.UpdateProduct(artikel, &product)
+	// Fetch the existing product first to avoid overwriting with zero values
+	existingProduct, err := db.FetchProductByArtikel(artikel)
 	if err != nil {
 		if err.Error() == "not_found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch existing product"})
 		}
+		return
+	}
+
+	// Create a map to hold the raw JSON request body
+	var requestBody map[string]interface{}
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create a product struct with the existing data
+	productToUpdate := existingProduct
+
+	// Only update fields that were provided in the request
+	if warna, ok := requestBody["warna"].(string); ok {
+		productToUpdate.Warna = warna
+	}
+
+	if size, ok := requestBody["size"].(string); ok {
+		productToUpdate.Size = size
+	}
+
+	if grup, ok := requestBody["grup"].(string); ok {
+		productToUpdate.Grup = grup
+	}
+
+	if unit, ok := requestBody["unit"].(string); ok {
+		productToUpdate.Unit = unit
+	}
+
+	if kat, ok := requestBody["kat"].(string); ok {
+		productToUpdate.Kat = kat
+	}
+
+	if model, ok := requestBody["model"].(string); ok {
+		productToUpdate.Model = model
+	}
+
+	if gender, ok := requestBody["gender"].(string); ok {
+		productToUpdate.Gender = gender
+	}
+
+	if tipe, ok := requestBody["tipe"].(string); ok {
+		productToUpdate.Tipe = tipe
+	}
+
+	if status, ok := requestBody["status"].(string); ok {
+		productToUpdate.Status = status
+	}
+
+	if supplier, ok := requestBody["supplier"].(string); ok {
+		productToUpdate.Supplier = supplier
+	}
+
+	if diupdateOleh, ok := requestBody["diupdate_oleh"].(string); ok {
+		productToUpdate.DiupdateOleh = diupdateOleh
+	}
+
+	// Handle numeric fields
+	if harga, ok := requestBody["harga"].(float64); ok {
+		productToUpdate.Harga = harga
+	}
+
+	if usia, ok := requestBody["usia"].(float64); ok {
+		productToUpdate.Usia = int(usia)
+	}
+
+	// Handle date fields if they're provided
+	if tanggalProduk, ok := requestBody["tanggal_produk"].(string); ok && tanggalProduk != "" {
+		date, err := time.Parse("2006-01-02", tanggalProduk)
+		if err == nil {
+			productToUpdate.TanggalProduk = date
+		}
+	}
+
+	if tanggalTerima, ok := requestBody["tanggal_terima"].(string); ok && tanggalTerima != "" {
+		date, err := time.Parse("2006-01-02", tanggalTerima)
+		if err == nil {
+			productToUpdate.TanggalTerima = date
+		}
+	}
+
+	// Update the tanggal_update field to now
+	productToUpdate.TanggalUpdate = time.Now()
+
+	// Perform the update operation
+	updatedProduct, err := db.UpdateProduct(artikel, &productToUpdate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product: " + err.Error()})
 		return
 	}
 

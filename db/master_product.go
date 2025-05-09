@@ -253,29 +253,145 @@ func InsertProduct(p *master_product.Product) error {
 }
 
 func UpdateProduct(artikel string, p *master_product.Product) (master_product.Product, error) {
-	result, err := DB.Exec(`
-		UPDATE master_products SET
-			warna = $1,
-			size = $2,
-			grup = $3,
-			unit = $4,
-			kat = $5,
-			model = $6,
-			gender = $7,
-			tipe = $8,
-			harga = $9,
-			tanggal_produk = $10,
-			tanggal_terima = $11,
-			usia = $12,
-			status = $13,
-			supplier = $14,
-			diupdate_oleh = $15,
-			tanggal_update = $16
-		WHERE artikel = $17`,
-		p.Warna, p.Size, p.Grup, p.Unit, p.Kat, p.Model, p.Gender, p.Tipe, p.Harga,
-		p.TanggalProduk, p.TanggalTerima, p.Usia, p.Status, p.Supplier,
-		p.DiupdateOleh, p.TanggalUpdate, artikel)
+	// First fetch the existing product to get current values
+	currentProduct, err := FetchProductByArtikel(artikel)
+	if err != nil {
+		return *p, err
+	}
 
+	// Build dynamic query with only fields that need to be updated
+	query := "UPDATE master_products SET"
+	args := []interface{}{}
+	paramCount := 1
+	fieldsToUpdate := 0
+
+	// Check each field and only update if it's not empty in the request
+	// For string fields
+	if p.Warna != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" warna = $%d,", paramCount)
+		args = append(args, p.Warna)
+		paramCount++
+	}
+
+	if p.Size != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" size = $%d,", paramCount)
+		args = append(args, p.Size)
+		paramCount++
+	}
+
+	if p.Grup != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" grup = $%d,", paramCount)
+		args = append(args, p.Grup)
+		paramCount++
+	}
+
+	if p.Unit != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" unit = $%d,", paramCount)
+		args = append(args, p.Unit)
+		paramCount++
+	}
+
+	if p.Kat != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" kat = $%d,", paramCount)
+		args = append(args, p.Kat)
+		paramCount++
+	}
+
+	if p.Model != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" model = $%d,", paramCount)
+		args = append(args, p.Model)
+		paramCount++
+	}
+
+	if p.Gender != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" gender = $%d,", paramCount)
+		args = append(args, p.Gender)
+		paramCount++
+	}
+
+	if p.Tipe != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" tipe = $%d,", paramCount)
+		args = append(args, p.Tipe)
+		paramCount++
+	}
+
+	if p.Status != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" status = $%d,", paramCount)
+		args = append(args, p.Status)
+		paramCount++
+	}
+
+	if p.Supplier != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" supplier = $%d,", paramCount)
+		args = append(args, p.Supplier)
+		paramCount++
+	}
+
+	if p.DiupdateOleh != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" diupdate_oleh = $%d,", paramCount)
+		args = append(args, p.DiupdateOleh)
+		paramCount++
+	}
+
+	// For numeric fields, check if they're initialized
+	if p.Harga != 0 {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" harga = $%d,", paramCount)
+		args = append(args, p.Harga)
+		paramCount++
+	}
+
+	if p.Usia != 0 {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" usia = $%d,", paramCount)
+		args = append(args, p.Usia)
+		paramCount++
+	}
+
+	// For date fields, check if they're not zero time
+	zeroTime := time.Time{}
+	if p.TanggalProduk != zeroTime {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" tanggal_produk = $%d,", paramCount)
+		args = append(args, p.TanggalProduk)
+		paramCount++
+	}
+
+	if p.TanggalTerima != zeroTime {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" tanggal_terima = $%d,", paramCount)
+		args = append(args, p.TanggalTerima)
+		paramCount++
+	}
+
+	// Always update tanggal_update
+	fieldsToUpdate++
+	query += fmt.Sprintf(" tanggal_update = $%d,", paramCount)
+	args = append(args, p.TanggalUpdate)
+	paramCount++
+
+	// Remove the trailing comma and complete the query
+	query = query[:len(query)-1] + " WHERE artikel = $" + fmt.Sprintf("%d", paramCount)
+	args = append(args, artikel)
+
+	// If no fields to update, return the current product
+	if fieldsToUpdate == 1 { // Only tanggal_update was added
+		return currentProduct, nil
+	}
+
+	// Execute the query
+	result, err := DB.Exec(query, args...)
 	if err != nil {
 		return *p, err
 	}
