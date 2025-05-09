@@ -33,6 +33,12 @@ func SetupRoutes() *gin.Engine {
 		{
 			products.GET("/", handlers.GetAllProducts)
 			products.POST("/", handlers.CreateProduct)
+			products.GET("/deleted", handlers.GetDeletedProducts) // Route for fetching deleted products
+			products.GET("/:artikel", handlers.GetProductByArtikel)
+
+			products.PUT("/:artikel", handlers.UpdateProduct)
+			products.DELETE("/:artikel", handlers.DeleteProduct)
+			products.POST("/restore/:artikel", handlers.RestoreProduct) // Route for restoring deleted products
 		}
 
 		/**

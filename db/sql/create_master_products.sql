@@ -18,4 +18,5 @@ CREATE TABLE
         supplier TEXT,
         diupdate_oleh TEXT,
         tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        tanggal_hapus TIMESTAMPTZ DEFAULT NULL,
     );
