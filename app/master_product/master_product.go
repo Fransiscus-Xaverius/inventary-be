@@ -25,6 +25,4 @@ type Product struct {
 	DiupdateOleh  string     `json:"diupdate_oleh"`  // DIUPDATE OLEH
 	TanggalUpdate time.Time  `json:"tanggal_update"` // TANGGAL UPDATE
 	TanggalHapus  *time.Time `json:"tanggal_hapus"`  // TANGGAL HAPUS - Null if product is active, contains timestamp when soft-deleted
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
 }

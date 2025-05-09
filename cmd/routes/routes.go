@@ -42,6 +42,22 @@ func SetupRoutes() *gin.Engine {
 		}
 
 		/**
+		 * Master Colors routes
+		 * These routes require authentication
+		 */
+		colors := api.Group("/colors")
+		colors.Use(AuthMiddleware())
+		{
+			colors.GET("/", handlers.GetAllColors)
+			colors.POST("/", handlers.CreateColor)
+			colors.GET("/deleted", handlers.GetDeletedColors)
+			colors.GET("/:id", handlers.GetColorByID)
+			colors.PUT("/:id", handlers.UpdateColor)
+			colors.DELETE("/:id", handlers.DeleteColor)
+			colors.POST("/restore/:id", handlers.RestoreColor)
+		}
+
+		/**
 		 * Accessible without authentication
 		 */
 		api.GET("/filters", handlers.GetFilterOptions)

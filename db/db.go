@@ -15,7 +15,7 @@ var DB *sql.DB
 func SetupDB(config *settings.Config) (*sql.DB, error) {
 	// Create PostgreSQL connection string
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		config.Database.Host, config.Database.Port, config.Database.User, 
+		config.Database.Host, config.Database.Port, config.Database.User,
 		config.Database.Password, config.Database.DBName)
 
 	// Open database connection
@@ -49,6 +49,10 @@ func InitDB() error {
 
 	if err := CreateCategoryColorLabelsTableIfNotExists(); err != nil {
 		return fmt.Errorf("failed to create category_color_labels table: %w", err)
+	}
+
+	if err := CreateMasterColorsTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_colors table: %w", err)
 	}
 
 	log.Println("Database initialization completed successfully")
