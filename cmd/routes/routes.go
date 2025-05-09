@@ -21,18 +21,27 @@ func SetupRoutes() *gin.Engine {
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", handlers.RegisterHandler) // You'll need to update these handler functions
-			auth.POST("/login", handlers.LoginHandler)      // to use gin.Context instead of http.HandlerFunc
+			auth.POST("/login", handlers.LoginHandler)       // to use gin.Context instead of http.HandlerFunc
 		}
 
-		// Filters endpoint - accessible without authentication
-		api.GET("/filters", handlers.GetFilterOptions)
-		
+		/**
+		 * Protected routes
+		 * These routes require authentication
+		 */
 		products := api.Group("/products")
 		products.Use(AuthMiddleware())
 		{
 			products.GET("/", handlers.GetAllProducts)
 			products.POST("/", handlers.CreateProduct)
 		}
+
+		/**
+		 * Accessible without authentication
+		 */
+		api.GET("/filters", handlers.GetFilterOptions)
+
+		api.GET("/category-colors", handlers.GetAllCategoryColorLabels)
+		api.GET("/category-colors/:column", handlers.GetCategoryColorLabelsByColumn)
 	}
 
 	return router

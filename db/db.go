@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
-	settings "github.com/everysoft/inventary-be/settings"  // Adjust based on your module name
+	settings "github.com/everysoft/inventary-be/settings" // Adjust based on your module name
+	_ "github.com/lib/pq"                                 // PostgreSQL driver
 )
 
 var DB *sql.DB
@@ -38,6 +38,21 @@ func SetupDB(config *settings.Config) (*sql.DB, error) {
 
 	log.Println("Successfully connected to PostgreSQL database")
 	return DB, nil
+}
+
+// InitDB initializes all database tables
+func InitDB() error {
+	// Create tables if they don't exist
+	if err := CreateMasterProductsTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_products table: %w", err)
+	}
+
+	if err := CreateCategoryColorLabelsTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create category_color_labels table: %w", err)
+	}
+
+	log.Println("Database initialization completed successfully")
+	return nil
 }
 
 func CloseDB() {

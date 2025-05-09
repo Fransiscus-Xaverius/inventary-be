@@ -4,14 +4,14 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"net/http"
 
-	"github.com/everysoft/inventary-be/db"
 	server "github.com/everysoft/inventary-be/cmd/routes"
+	"github.com/everysoft/inventary-be/db"
 	settings "github.com/everysoft/inventary-be/settings"
 )
 
@@ -31,13 +31,9 @@ func main() {
 	}
 	defer db.CloseDB()
 	
-	// Ensure database tables exist
-	if err := db.CreateUsersTableIfNotExists(); err != nil {
-		log.Fatalf("Failed to create database tables: %v", err)
-	}
-
-	if err = db.CreateMasterProductsTableIfNotExists(); err != nil {
-		log.Fatalf("Failed to create database tables: %v", err)
+	// Initialize database tables
+	if err := db.InitDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	
 	// Setup routes - this will return *gin.Engine instead of *http.ServeMux
