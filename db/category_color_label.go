@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/everysoft/inventary-be/app/category_color_label"
@@ -17,11 +18,20 @@ func CreateCategoryColorLabelsTableIfNotExists() error {
 			keterangan TEXT,
 			tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM pg_constraint
+				WHERE conname = 'uq_category_color_labels_column_desc'
+			) THEN
+				ALTER TABLE category_color_labels ADD CONSTRAINT uq_category_color_labels_column_desc UNIQUE (nama_kolom, keterangan);
+			END IF;
+		END$$;`,
 	}
 
 	for _, stmt := range statements {
 		if _, err := DB.Exec(stmt); err != nil {
-			return err
+			return fmt.Errorf("failed to execute statement: %w", err)
 		}
 	}
 

@@ -143,6 +143,10 @@ func UpdateColor(c *gin.Context) {
 		colorToUpdate.Nama = nama
 	}
 
+	if hex, ok := requestBody["hex"].(string); ok {
+		colorToUpdate.Hex = hex
+	}
+
 	// Update the tanggal_update field to now
 	colorToUpdate.TanggalUpdate = time.Now()
 

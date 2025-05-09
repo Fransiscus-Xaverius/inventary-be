@@ -15,6 +15,7 @@ func CreateMasterColorsTableIfNotExists() error {
 		`CREATE TABLE IF NOT EXISTS master_colors (
 			id SERIAL PRIMARY KEY,
 			nama TEXT NOT NULL,
+			hex TEXT,
 			tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 			tanggal_hapus TIMESTAMPTZ
 		);`,
@@ -26,6 +27,16 @@ func CreateMasterColorsTableIfNotExists() error {
 				WHERE conname = 'uq_master_colors_nama'
 			) THEN
 				ALTER TABLE master_colors ADD CONSTRAINT uq_master_colors_nama UNIQUE (nama);
+			END IF;
+		END$$;`,
+		// Add hex column if it doesn't exist (for backward compatibility)
+		`DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = 'master_colors' AND column_name = 'hex'
+			) THEN
+				ALTER TABLE master_colors ADD COLUMN hex TEXT;
 			END IF;
 		END$$;`,
 	}
@@ -50,6 +61,7 @@ func CountAllColors(queryStr string) (int, error) {
 		searchQuery := ` AND (
 			CAST(id AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR hex ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 		)`
 		baseQuery += searchQuery
 		args = append(args, "%"+queryStr+"%")
@@ -67,7 +79,7 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		id, nama, tanggal_update, tanggal_hapus
+		id, nama, hex, tanggal_update, tanggal_hapus
 	FROM master_colors
 	WHERE tanggal_hapus IS NULL`
 
@@ -79,6 +91,7 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 		searchQuery := ` AND (
 			CAST(id AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR hex ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 		)`
 		baseQuery += searchQuery
 		args = append(args, "%"+queryStr+"%")
@@ -89,7 +102,7 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 	orderBy := " ORDER BY "
 	// Map of valid column names to prevent SQL injection
 	validColumns := map[string]bool{
-		"id": true, "nama": true, "tanggal_update": true,
+		"id": true, "nama": true, "hex": true, "tanggal_update": true,
 	}
 
 	// Default sort
@@ -118,7 +131,7 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 	for rows.Next() {
 		var c master_color.Color
 		if err := rows.Scan(
-			&c.ID, &c.Nama, &c.TanggalUpdate, &c.TanggalHapus,
+			&c.ID, &c.Nama, &c.Hex, &c.TanggalUpdate, &c.TanggalHapus,
 		); err != nil {
 			return nil, err
 		}
@@ -130,8 +143,8 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 
 func FetchColorByID(id int) (master_color.Color, error) {
 	var c master_color.Color
-	err := DB.QueryRow(`SELECT id, nama, tanggal_update, tanggal_hapus FROM master_colors WHERE id = $1 AND tanggal_hapus IS NULL`, id).
-		Scan(&c.ID, &c.Nama, &c.TanggalUpdate, &c.TanggalHapus)
+	err := DB.QueryRow(`SELECT id, nama, hex, tanggal_update, tanggal_hapus FROM master_colors WHERE id = $1 AND tanggal_hapus IS NULL`, id).
+		Scan(&c.ID, &c.Nama, &c.Hex, &c.TanggalUpdate, &c.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return c, errors.New("not_found")
@@ -142,8 +155,8 @@ func FetchColorByID(id int) (master_color.Color, error) {
 func InsertColor(c *master_color.Color) error {
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_colors 
-		(nama, tanggal_update) 
-		VALUES ($1, $2)
+		(nama, hex, tanggal_update) 
+		VALUES ($1, $2, $3)
 		RETURNING id`)
 	if err != nil {
 		return err
@@ -152,6 +165,7 @@ func InsertColor(c *master_color.Color) error {
 
 	return stmt.QueryRow(
 		c.Nama,
+		c.Hex,
 		c.TanggalUpdate,
 	).Scan(&c.ID)
 }
@@ -175,6 +189,13 @@ func UpdateColor(id int, c *master_color.Color) (master_color.Color, error) {
 		fieldsToUpdate++
 		query += fmt.Sprintf(" nama = $%d,", paramCount)
 		args = append(args, c.Nama)
+		paramCount++
+	}
+
+	if c.Hex != "" {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" hex = $%d,", paramCount)
+		args = append(args, c.Hex)
 		paramCount++
 	}
 
@@ -274,7 +295,7 @@ func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, s
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		id, nama, tanggal_update, tanggal_hapus
+		id, nama, hex, tanggal_update, tanggal_hapus
 	FROM master_colors
 	WHERE tanggal_hapus IS NOT NULL`
 
@@ -286,6 +307,7 @@ func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, s
 		searchQuery := ` AND (
 			CAST(id AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR hex ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 		)`
 		baseQuery += searchQuery
 		args = append(args, "%"+queryStr+"%")
@@ -296,7 +318,7 @@ func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, s
 	orderBy := " ORDER BY "
 	// Map of valid column names to prevent SQL injection
 	validColumns := map[string]bool{
-		"id": true, "nama": true, "tanggal_update": true, "tanggal_hapus": true,
+		"id": true, "nama": true, "hex": true, "tanggal_update": true, "tanggal_hapus": true,
 	}
 
 	// Default sort
@@ -325,7 +347,7 @@ func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, s
 	for rows.Next() {
 		var c master_color.Color
 		if err := rows.Scan(
-			&c.ID, &c.Nama, &c.TanggalUpdate, &c.TanggalHapus,
+			&c.ID, &c.Nama, &c.Hex, &c.TanggalUpdate, &c.TanggalHapus,
 		); err != nil {
 			return nil, err
 		}
