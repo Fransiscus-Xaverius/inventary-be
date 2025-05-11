@@ -58,6 +58,22 @@ func SetupRoutes() *gin.Engine {
 		}
 
 		/**
+		 * Master Sizes routes
+		 * These routes require authentication
+		 */
+		sizes := api.Group("/sizes")
+		sizes.Use(AuthMiddleware())
+		{
+			sizes.GET("/", handlers.GetAllSizes)
+			sizes.POST("/", handlers.CreateSize)
+			sizes.GET("/deleted", handlers.GetDeletedSizes)
+			sizes.GET("/:id", handlers.GetSizeByID)
+			sizes.PUT("/:id", handlers.UpdateSize)
+			sizes.DELETE("/:id", handlers.DeleteSize)
+			sizes.POST("/restore/:id", handlers.RestoreSize)
+		}
+
+		/**
 		 * Accessible without authentication
 		 */
 		api.GET("/filters", handlers.GetFilterOptions)

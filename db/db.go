@@ -60,6 +60,10 @@ func InitDB() error {
 		return fmt.Errorf("failed to create master_colors table: %w", err)
 	}
 
+	if err := CreateMasterSizesTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_sizes table: %w", err)
+	}
+
 	log.Println("Database initialization completed successfully")
 	return nil
 }
@@ -82,6 +86,7 @@ func RunSeeders() error {
 	}{
 		{name: "colors", path: "db/sql/seeder_master_colors.sql"},                        // First load base colors
 		{name: "category_color_labels", path: "db/sql/seeder_category_color_labels.sql"}, // Then category colors
+		{name: "sizes", path: "db/sql/seeder_master_sizes.sql"},                          // Then sizes
 		{name: "products", path: "db/sql/seeder_master_products.sql"},                    // Finally load products with colors
 	}
 
@@ -117,6 +122,7 @@ func RunSpecificSeeders(seeders []string) error {
 		"colors":                "db/sql/seeder_master_colors.sql",
 		"category_color_labels": "db/sql/seeder_category_color_labels.sql",
 		"products":              "db/sql/seeder_master_products.sql",
+		"sizes":                 "db/sql/seeder_master_sizes.sql",
 	}
 
 	// Validate requested seeders

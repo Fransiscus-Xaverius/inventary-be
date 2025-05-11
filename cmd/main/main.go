@@ -24,9 +24,10 @@ func printSeedHelp() {
 	fmt.Println("  colors                - Populates master_colors table with common colors in Bahasa Indonesia")
 	fmt.Println("  category_color_labels - Adds color labels for category attributes")
 	fmt.Println("  products              - Adds/updates 1000 sample products in master_products table")
+	fmt.Println("  sizes                 - Populates master_sizes table with common shoe sizes (EU, US, UK)")
 	fmt.Println("\nExamples:")
 	fmt.Println("  ./main -seed                               # Run all seeders")
-	fmt.Println("  ./main -seed-specific colors,products      # Run only colors and products seeders")
+	fmt.Println("  ./main -seed-specific colors,products,sizes # Run only colors, products and sizes seeders")
 	fmt.Println("")
 }
 
