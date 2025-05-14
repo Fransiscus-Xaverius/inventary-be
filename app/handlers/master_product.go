@@ -4,9 +4,11 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/everysoft/inventary-be/app/models"
+	"github.com/everysoft/inventary-be/app/validation/master_product"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
 )
@@ -92,9 +94,22 @@ func CreateProduct(c *gin.Context) {
 		return
 	}
 
+	// Perform validation using the new validation package
+	if validationErr := master_product.ValidateCreate(&product); validationErr != nil {
+		c.JSON(http.StatusBadRequest, validationErr)
+		return
+	}
+
 	product.TanggalUpdate = time.Now()
 	err := db.InsertProduct(&product)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"column":  "artikel",
+				"message": "Product with this artikel already exists",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product: " + err.Error()})
 		return
 	}
@@ -193,6 +208,12 @@ func UpdateProduct(c *gin.Context) {
 
 	// Update the tanggal_update field to now
 	productToUpdate.TanggalUpdate = time.Now()
+
+	// Validate the updated product
+	if validationErr := master_product.ValidateUpdate(&productToUpdate); validationErr != nil {
+		c.JSON(http.StatusBadRequest, validationErr)
+		return
+	}
 
 	// Perform the update operation
 	updatedProduct, err := db.UpdateProduct(artikel, &productToUpdate)
