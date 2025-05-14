@@ -1,6 +1,27 @@
 -- Seeder for category_color_labels table
 -- This seeder adds color labels for different categories
 
+-- Create the table if it doesn't exist
+CREATE TABLE IF NOT EXISTS category_color_labels (
+    id SERIAL PRIMARY KEY,
+    kode_warna TEXT,
+    nama_warna TEXT,
+    nama_kolom TEXT,
+    keterangan TEXT,
+    tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add unique constraint if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_category_color_labels_column_desc'
+    ) THEN
+        ALTER TABLE category_color_labels ADD CONSTRAINT uq_category_color_labels_column_desc UNIQUE (nama_kolom, keterangan);
+    END IF;
+END$$;
+
 -- Insert or update color labels
 INSERT INTO category_color_labels (kode_warna, nama_warna, nama_kolom, keterangan) 
 VALUES 

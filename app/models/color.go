@@ -1,9 +1,10 @@
-package master_color
+package models
 
 import (
 	"time"
 )
 
+// Color represents a color record in the database
 type Color struct {
 	ID            int        `json:"id"`
 	Nama          string     `json:"nama"`

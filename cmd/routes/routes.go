@@ -35,7 +35,6 @@ func SetupRoutes() *gin.Engine {
 			products.POST("/", handlers.CreateProduct)
 			products.GET("/deleted", handlers.GetDeletedProducts) // Route for fetching deleted products
 			products.GET("/:artikel", handlers.GetProductByArtikel)
-
 			products.PUT("/:artikel", handlers.UpdateProduct)
 			products.DELETE("/:artikel", handlers.DeleteProduct)
 			products.POST("/restore/:artikel", handlers.RestoreProduct) // Route for restoring deleted products
@@ -58,28 +57,92 @@ func SetupRoutes() *gin.Engine {
 		}
 
 		/**
-		 * Master Sizes routes
+		 * Master Grup routes
 		 * These routes require authentication
 		 */
-		sizes := api.Group("/sizes")
-		sizes.Use(AuthMiddleware())
+		grups := api.Group("/grups")
+		grups.Use(AuthMiddleware())
 		{
-			sizes.GET("/", handlers.GetAllSizes)
-			sizes.POST("/", handlers.CreateSize)
-			sizes.GET("/deleted", handlers.GetDeletedSizes)
-			sizes.GET("/:id", handlers.GetSizeByID)
-			sizes.PUT("/:id", handlers.UpdateSize)
-			sizes.DELETE("/:id", handlers.DeleteSize)
-			sizes.POST("/restore/:id", handlers.RestoreSize)
+			grups.GET("/", handlers.GetAllGrups)
+			grups.POST("/", handlers.CreateGrup)
+			grups.GET("/deleted", handlers.GetDeletedGrups)
+			grups.GET("/:id", handlers.GetGrupByID)
+			grups.PUT("/:id", handlers.UpdateGrup)
+			grups.DELETE("/:id", handlers.DeleteGrup)
+			grups.POST("/restore/:id", handlers.RestoreGrup)
+		}
+
+		/**
+		 * Master Unit routes
+		 * These routes require authentication
+		 */
+		units := api.Group("/units")
+		units.Use(AuthMiddleware())
+		{
+			units.GET("/", handlers.GetAllUnits)
+			units.POST("/", handlers.CreateUnit)
+			units.GET("/deleted", handlers.GetDeletedUnits)
+			units.GET("/:id", handlers.GetUnitByID)
+			units.PUT("/:id", handlers.UpdateUnit)
+			units.DELETE("/:id", handlers.DeleteUnit)
+			units.POST("/restore/:id", handlers.RestoreUnit)
+		}
+
+		/**
+		 * Master Kat routes
+		 * These routes require authentication
+		 */
+		kats := api.Group("/kats")
+		kats.Use(AuthMiddleware())
+		{
+			kats.GET("/", handlers.GetAllKats)
+			kats.POST("/", handlers.CreateKat)
+			kats.GET("/deleted", handlers.GetDeletedKats)
+			kats.GET("/:id", handlers.GetKatByID)
+			kats.PUT("/:id", handlers.UpdateKat)
+			kats.DELETE("/:id", handlers.DeleteKat)
+			kats.POST("/restore/:id", handlers.RestoreKat)
+		}
+
+		/**
+		 * Master Gender routes
+		 * These routes require authentication
+		 */
+		genders := api.Group("/genders")
+		genders.Use(AuthMiddleware())
+		{
+			genders.GET("/", handlers.GetAllGenders)
+			genders.POST("/", handlers.CreateGender)
+			genders.GET("/deleted", handlers.GetDeletedGenders)
+			genders.GET("/:id", handlers.GetGenderByID)
+			genders.PUT("/:id", handlers.UpdateGender)
+			genders.DELETE("/:id", handlers.DeleteGender)
+			genders.POST("/restore/:id", handlers.RestoreGender)
+		}
+
+		/**
+		 * Master Tipe routes
+		 * These routes require authentication
+		 */
+		tipes := api.Group("/tipes")
+		tipes.Use(AuthMiddleware())
+		{
+			tipes.GET("/", handlers.GetAllTipes)
+			tipes.POST("/", handlers.CreateTipe)
+			tipes.GET("/deleted", handlers.GetDeletedTipes)
+			tipes.GET("/:id", handlers.GetTipeByID)
+			tipes.PUT("/:id", handlers.UpdateTipe)
+			tipes.DELETE("/:id", handlers.DeleteTipe)
+			tipes.POST("/restore/:id", handlers.RestoreTipe)
 		}
 
 		/**
 		 * Accessible without authentication
 		 */
 		api.GET("/filters", handlers.GetFilterOptions)
-
 		api.GET("/category-colors", handlers.GetAllCategoryColorLabels)
 		api.GET("/category-colors/:column", handlers.GetCategoryColorLabelsByColumn)
+		api.GET("/category-colors/:column/:value", handlers.GetCategoryColorLabelByColumnAndValue)
 	}
 
 	return router

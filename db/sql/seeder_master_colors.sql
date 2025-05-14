@@ -1,5 +1,28 @@
 -- Seeder for master_colors table with Indonesian color names and hex values
 
+-- Create the table if it doesn't exist
+CREATE TABLE IF NOT EXISTS master_colors (
+    id SERIAL PRIMARY KEY,
+    nama TEXT NOT NULL,
+    hex TEXT,
+    tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    tanggal_hapus TIMESTAMPTZ
+);
+
+-- Create index on nama field
+CREATE INDEX IF NOT EXISTS idx_master_colors_nama ON master_colors(nama);
+
+-- Add unique constraint if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_master_colors_nama'
+    ) THEN
+        ALTER TABLE master_colors ADD CONSTRAINT uq_master_colors_nama UNIQUE (nama);
+    END IF;
+END$$;
+
 -- Truncate the table first (optional, only if you want to start fresh)
 -- TRUNCATE TABLE master_colors RESTART IDENTITY;
 

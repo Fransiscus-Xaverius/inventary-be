@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/everysoft/inventary-be/app/master_product"
+	"github.com/everysoft/inventary-be/app/models"
 )
 
 func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
@@ -29,7 +29,15 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
-			OR CAST(usia AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CASE 
+				WHEN tanggal_terima IS NOT NULL THEN 
+					CASE
+						WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+						WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+						ELSE 'Aging'
+					END
+				ELSE 'Unknown' 
+			   END ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR status ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR supplier ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR diupdate_oleh ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -71,7 +79,6 @@ func CreateMasterProductsTableIfNotExists() error {
 			harga NUMERIC(15,2),
 			tanggal_produk DATE,
 			tanggal_terima DATE,
-			usia INT,
 			status TEXT,
 			supplier TEXT,
 			diupdate_oleh TEXT,
@@ -101,13 +108,23 @@ func CreateMasterProductsTableIfNotExists() error {
 	return nil
 }
 
-func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]master_product.Product, error) {
-	products := []master_product.Product{}
+func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]models.Product, error) {
+	products := []models.Product{}
 
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, usia, status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus
+		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, 
+		CASE 
+			WHEN tanggal_terima IS NOT NULL THEN 
+				CASE
+					WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+					WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+					ELSE 'Aging'
+				END
+			ELSE 'Unknown' 
+		END AS usia,
+		status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus
 	FROM master_products
 	WHERE tanggal_hapus IS NULL`
 
@@ -128,7 +145,15 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
-			OR CAST(usia AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CASE 
+				WHEN tanggal_terima IS NOT NULL THEN 
+					CASE
+						WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+						WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+						ELSE 'Aging'
+					END
+				ELSE 'Unknown' 
+			   END ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR status ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR supplier ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR diupdate_oleh ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -183,48 +208,124 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var p master_product.Product
+		var p models.Product
+		var usia string
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
 			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk,
-			&p.TanggalTerima, &p.Usia, &p.Status, &p.Supplier,
+			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
 			return nil, err
 		}
+
+		p.Usia = usia
+
+		// Fetch color information
+		colors, err := FetchColorsByIDs(p.Warna)
+		if err != nil {
+			log.Printf("Error fetching colors for product %s: %v", p.Artikel, err)
+		} else {
+			p.Colors = colors
+		}
+
 		products = append(products, p)
 	}
 
 	return products, nil
 }
 
-func FetchProductByArtikel(artikel string) (master_product.Product, error) {
-	var p master_product.Product
-	err := DB.QueryRow(`SELECT no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, usia, status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus FROM master_products WHERE artikel = $1 AND tanggal_hapus IS NULL`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &p.Usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+func FetchProductByArtikel(artikel string) (models.Product, error) {
+	var p models.Product
+	var usia string
+	err := DB.QueryRow(`
+		SELECT 
+			no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, 
+			tanggal_produk, tanggal_terima, 
+			CASE 
+				WHEN tanggal_terima IS NOT NULL THEN 
+					CASE
+						WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+						WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+						ELSE 'Aging'
+					END
+				ELSE 'Unknown' 
+			END AS usia,
+			status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus 
+		FROM master_products 
+		WHERE artikel = $1 AND tanggal_hapus IS NULL
+	`, artikel).
+		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
 	}
-	return p, err
+
+	if err != nil {
+		return p, err
+	}
+
+	p.Usia = usia
+
+	// Fetch color information
+	colors, err := FetchColorsByIDs(p.Warna)
+	if err != nil {
+		log.Printf("Error fetching colors for product %s: %v", p.Artikel, err)
+	} else {
+		p.Colors = colors
+	}
+
+	return p, nil
 }
 
-func FetchProductByArtikelIncludeDeleted(artikel string) (master_product.Product, error) {
-	var p master_product.Product
-	err := DB.QueryRow(`SELECT no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, usia, status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus FROM master_products WHERE artikel = $1`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &p.Usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error) {
+	var p models.Product
+	var usia string
+	err := DB.QueryRow(`
+		SELECT 
+			no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, 
+			tanggal_produk, tanggal_terima, 
+			CASE 
+				WHEN tanggal_terima IS NOT NULL THEN 
+					CASE
+						WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+						WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+						ELSE 'Aging'
+					END
+				ELSE 'Unknown' 
+			END AS usia,
+			status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus 
+		FROM master_products 
+		WHERE artikel = $1
+	`, artikel).
+		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
 	}
-	return p, err
+
+	if err != nil {
+		return p, err
+	}
+
+	p.Usia = usia
+
+	// Fetch color information
+	colors, err := FetchColorsByIDs(p.Warna)
+	if err != nil {
+		log.Printf("Error fetching colors for product %s: %v", p.Artikel, err)
+	} else {
+		p.Colors = colors
+	}
+
+	return p, nil
 }
 
-func InsertProduct(p *master_product.Product) error {
+func InsertProduct(p *models.Product) error {
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_products 
-		(artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, usia, status, supplier, diupdate_oleh, tanggal_update) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		(artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING no`)
 	if err != nil {
 		return err
@@ -244,7 +345,6 @@ func InsertProduct(p *master_product.Product) error {
 		p.Harga,
 		p.TanggalProduk,
 		p.TanggalTerima,
-		p.Usia,
 		p.Status,
 		p.Supplier,
 		p.DiupdateOleh,
@@ -252,7 +352,7 @@ func InsertProduct(p *master_product.Product) error {
 	).Scan(&p.No)
 }
 
-func UpdateProduct(artikel string, p *master_product.Product) (master_product.Product, error) {
+func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 	// First fetch the existing product to get current values
 	currentProduct, err := FetchProductByArtikel(artikel)
 	if err != nil {
@@ -349,13 +449,6 @@ func UpdateProduct(artikel string, p *master_product.Product) (master_product.Pr
 		fieldsToUpdate++
 		query += fmt.Sprintf(" harga = $%d,", paramCount)
 		args = append(args, p.Harga)
-		paramCount++
-	}
-
-	if p.Usia != 0 {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" usia = $%d,", paramCount)
-		args = append(args, p.Usia)
 		paramCount++
 	}
 
@@ -492,13 +585,23 @@ func FetchFilterOptions() (map[string]map[string]interface{}, error) {
 }
 
 // FetchDeletedProducts retrieves all soft-deleted products with pagination
-func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]master_product.Product, error) {
-	products := []master_product.Product{}
+func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]models.Product, error) {
+	products := []models.Product{}
 
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, usia, status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus
+		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, 
+		CASE 
+			WHEN tanggal_terima IS NOT NULL THEN 
+				CASE
+					WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+					WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+					ELSE 'Aging'
+				END
+			ELSE 'Unknown' 
+		END AS usia,
+		status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus
 	FROM master_products
 	WHERE tanggal_hapus IS NOT NULL`
 
@@ -519,7 +622,15 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
-			OR CAST(usia AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CASE 
+				WHEN tanggal_terima IS NOT NULL THEN 
+					CASE
+						WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+						WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+						ELSE 'Aging'
+					END
+				ELSE 'Unknown' 
+			   END ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR status ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR supplier ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR diupdate_oleh ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -575,15 +686,27 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var p master_product.Product
+		var p models.Product
+		var usia string
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
 			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk,
-			&p.TanggalTerima, &p.Usia, &p.Status, &p.Supplier,
+			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
 			return nil, err
 		}
+
+		p.Usia = usia
+
+		// Fetch color information
+		colors, err := FetchColorsByIDs(p.Warna)
+		if err != nil {
+			log.Printf("Error fetching colors for product %s: %v", p.Artikel, err)
+		} else {
+			p.Colors = colors
+		}
+
 		products = append(products, p)
 	}
 
@@ -610,7 +733,15 @@ func CountDeletedProducts(queryStr string, filters map[string]string) (int, erro
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
-			OR CAST(usia AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CASE 
+				WHEN tanggal_terima IS NOT NULL THEN 
+					CASE
+						WHEN (CURRENT_DATE - tanggal_terima) < 365 THEN 'Fresh'
+						WHEN (CURRENT_DATE - tanggal_terima) < 730 THEN 'Normal'
+						ELSE 'Aging'
+					END
+				ELSE 'Unknown' 
+			   END ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR status ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR supplier ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR diupdate_oleh ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -634,4 +765,43 @@ func CountDeletedProducts(queryStr string, filters map[string]string) (int, erro
 	var count int
 	err := DB.QueryRow(baseQuery, args...).Scan(&count)
 	return count, err
+}
+
+// fetchColorInfosForProduct gets color details for a given set of color IDs
+func fetchColorInfosForProduct(colorIDs []int) ([]models.ColorInfo, error) {
+	if len(colorIDs) == 0 {
+		return []models.ColorInfo{}, nil
+	}
+
+	// Build a query with placeholders for all IDs
+	query := "SELECT id, nama, hex FROM master_colors WHERE id IN ("
+	args := make([]interface{}, 0, len(colorIDs))
+
+	for i, id := range colorIDs {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("$%d", i+1)
+		args = append(args, id)
+	}
+	query += ")"
+
+	// Execute the query
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Process results
+	colors := []models.ColorInfo{}
+	for rows.Next() {
+		var c models.ColorInfo
+		if err := rows.Scan(&c.ID, &c.Name, &c.Hex); err != nil {
+			return nil, err
+		}
+		colors = append(colors, c)
+	}
+
+	return colors, nil
 }

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/everysoft/inventary-be/app/master_color"
+	"github.com/everysoft/inventary-be/app/models"
 )
 
 func CreateMasterColorsTableIfNotExists() error {
@@ -73,8 +75,8 @@ func CountAllColors(queryStr string) (int, error) {
 	return count, err
 }
 
-func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortDirection string) ([]master_color.Color, error) {
-	colors := []master_color.Color{}
+func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortDirection string) ([]models.Color, error) {
+	colors := []models.Color{}
 
 	// Start building the query with parameters
 	baseQuery := `
@@ -129,7 +131,7 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var c master_color.Color
+		var c models.Color
 		if err := rows.Scan(
 			&c.ID, &c.Nama, &c.Hex, &c.TanggalUpdate, &c.TanggalHapus,
 		); err != nil {
@@ -141,8 +143,8 @@ func FetchAllColors(limit, offset int, queryStr string, sortColumn string, sortD
 	return colors, nil
 }
 
-func FetchColorByID(id int) (master_color.Color, error) {
-	var c master_color.Color
+func FetchColorByID(id int) (models.Color, error) {
+	var c models.Color
 	err := DB.QueryRow(`SELECT id, nama, hex, tanggal_update, tanggal_hapus FROM master_colors WHERE id = $1 AND tanggal_hapus IS NULL`, id).
 		Scan(&c.ID, &c.Nama, &c.Hex, &c.TanggalUpdate, &c.TanggalHapus)
 
@@ -152,7 +154,7 @@ func FetchColorByID(id int) (master_color.Color, error) {
 	return c, err
 }
 
-func InsertColor(c *master_color.Color) error {
+func InsertColor(c *models.Color) error {
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_colors 
 		(nama, hex, tanggal_update) 
@@ -170,7 +172,7 @@ func InsertColor(c *master_color.Color) error {
 	).Scan(&c.ID)
 }
 
-func UpdateColor(id int, c *master_color.Color) (master_color.Color, error) {
+func UpdateColor(id int, c *models.Color) (models.Color, error) {
 	// First fetch the existing color to get current values
 	currentColor, err := FetchColorByID(id)
 	if err != nil {
@@ -289,8 +291,8 @@ func CountDeletedColors(queryStr string) (int, error) {
 	return count, err
 }
 
-func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, sortDirection string) ([]master_color.Color, error) {
-	colors := []master_color.Color{}
+func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, sortDirection string) ([]models.Color, error) {
+	colors := []models.Color{}
 
 	// Start building the query with parameters
 	baseQuery := `
@@ -345,10 +347,49 @@ func FetchDeletedColors(limit, offset int, queryStr string, sortColumn string, s
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var c master_color.Color
+		var c models.Color
 		if err := rows.Scan(
 			&c.ID, &c.Nama, &c.Hex, &c.TanggalUpdate, &c.TanggalHapus,
 		); err != nil {
+			return nil, err
+		}
+		colors = append(colors, c)
+	}
+
+	return colors, nil
+}
+
+// FetchColorsByIDs retrieves color information for comma-separated color IDs
+func FetchColorsByIDs(colorIDs string) ([]models.ColorInfo, error) {
+	if colorIDs == "" {
+		return []models.ColorInfo{}, nil
+	}
+
+	// Split the comma-separated IDs
+	idStrings := strings.Split(colorIDs, ",")
+
+	// Convert all ids to a format suitable for SQL IN clause
+	var idArgs []interface{}
+	for i, idStr := range idStrings {
+		idArgs = append(idArgs, idStr)
+		idStrings[i] = "$" + strconv.Itoa(i+1)
+	}
+
+	// Build query
+	query := fmt.Sprintf("SELECT id, nama, hex FROM master_colors WHERE id IN (%s) AND tanggal_hapus IS NULL", strings.Join(idStrings, ","))
+
+	// Execute query
+	rows, err := DB.Query(query, idArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Collect color info
+	var colors []models.ColorInfo
+	for rows.Next() {
+		var c models.ColorInfo
+		if err := rows.Scan(&c.ID, &c.Name, &c.Hex); err != nil {
 			return nil, err
 		}
 		colors = append(colors, c)

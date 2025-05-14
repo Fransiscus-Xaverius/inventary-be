@@ -60,8 +60,24 @@ func InitDB() error {
 		return fmt.Errorf("failed to create master_colors table: %w", err)
 	}
 
-	if err := CreateMasterSizesTableIfNotExists(); err != nil {
-		return fmt.Errorf("failed to create master_sizes table: %w", err)
+	if err := CreateMasterGrupsTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_grups table: %w", err)
+	}
+
+	if err := CreateMasterUnitsTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_units table: %w", err)
+	}
+
+	if err := CreateMasterKatsTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_kats table: %w", err)
+	}
+
+	if err := CreateMasterGendersTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_genders table: %w", err)
+	}
+
+	if err := CreateMasterTipesTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_tipes table: %w", err)
 	}
 
 	log.Println("Database initialization completed successfully")
@@ -86,8 +102,12 @@ func RunSeeders() error {
 	}{
 		{name: "colors", path: "db/sql/seeder_master_colors.sql"},                        // First load base colors
 		{name: "category_color_labels", path: "db/sql/seeder_category_color_labels.sql"}, // Then category colors
-		{name: "sizes", path: "db/sql/seeder_master_sizes.sql"},                          // Then sizes
-		{name: "products", path: "db/sql/seeder_master_products.sql"},                    // Finally load products with colors
+		{name: "grups", path: "db/sql/seeder_master_grups.sql"},                          // Master grups
+		{name: "units", path: "db/sql/seeder_master_units.sql"},                          // Master units
+		{name: "kats", path: "db/sql/seeder_master_kats.sql"},                            // Master categories
+		{name: "genders", path: "db/sql/seeder_master_genders.sql"},                      // Master genders
+		{name: "tipes", path: "db/sql/seeder_master_tipes.sql"},                          // Master tipes
+		{name: "products", path: "db/sql/seeder_master_products.sql"},                    // Finally load products with references
 	}
 
 	// Process each seeder in order
@@ -121,8 +141,12 @@ func RunSpecificSeeders(seeders []string) error {
 	allSeeders := map[string]string{
 		"colors":                "db/sql/seeder_master_colors.sql",
 		"category_color_labels": "db/sql/seeder_category_color_labels.sql",
+		"grups":                 "db/sql/seeder_master_grups.sql",
+		"units":                 "db/sql/seeder_master_units.sql",
+		"kats":                  "db/sql/seeder_master_kats.sql",
+		"genders":               "db/sql/seeder_master_genders.sql",
+		"tipes":                 "db/sql/seeder_master_tipes.sql",
 		"products":              "db/sql/seeder_master_products.sql",
-		"sizes":                 "db/sql/seeder_master_sizes.sql",
 	}
 
 	// Validate requested seeders

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	Product "github.com/everysoft/inventary-be/app/master_product"
+	"github.com/everysoft/inventary-be/app/models"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
 )
@@ -86,7 +86,7 @@ func GetProductByArtikel(c *gin.Context) {
 }
 
 func CreateProduct(c *gin.Context) {
-	var product Product.Product
+	var product models.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -174,10 +174,6 @@ func UpdateProduct(c *gin.Context) {
 	// Handle numeric fields
 	if harga, ok := requestBody["harga"].(float64); ok {
 		productToUpdate.Harga = harga
-	}
-
-	if usia, ok := requestBody["usia"].(float64); ok {
-		productToUpdate.Usia = int(usia)
 	}
 
 	// Handle date fields if they're provided

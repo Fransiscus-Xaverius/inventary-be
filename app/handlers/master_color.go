@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/everysoft/inventary-be/app/master_color"
+	"github.com/everysoft/inventary-be/app/models"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
 )
@@ -83,7 +83,7 @@ func GetColorByID(c *gin.Context) {
 
 // CreateColor handles creating a new color
 func CreateColor(c *gin.Context) {
-	var color master_color.Color
+	var color models.Color
 	if err := c.ShouldBindJSON(&color); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -99,3 +99,26 @@ func FetchCategoryColorLabelsByColumn(columnName string) ([]category_color_label
 
 	return labels, nil
 }
+
+// FetchCategoryColorLabelByColumnAndValue retrieves a specific category color label by column name and category value
+func FetchCategoryColorLabelByColumnAndValue(columnName, categoryValue string) (*category_color_label.CategoryColorLabel, error) {
+	var label category_color_label.CategoryColorLabel
+
+	query := `
+	SELECT 
+		id, kode_warna, nama_warna, nama_kolom, keterangan, tanggal_update
+	FROM category_color_labels
+	WHERE nama_kolom = $1 AND LOWER(keterangan) = LOWER($2)
+	LIMIT 1`
+
+	row := DB.QueryRow(query, columnName, categoryValue)
+	err := row.Scan(
+		&label.ID, &label.KodeWarna, &label.NamaWarna,
+		&label.NamaKolom, &label.Keterangan, &label.TanggalUpdate,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &label, nil
+}

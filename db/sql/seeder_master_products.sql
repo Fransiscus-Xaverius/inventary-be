@@ -1,94 +1,192 @@
 -- Seeder for master_products table
 -- This seeder will add 1000 sample products
 
+-- Create the table if it doesn't exist
+CREATE TABLE IF NOT EXISTS master_products (
+    no SERIAL PRIMARY KEY,
+    artikel TEXT NOT NULL,
+    warna TEXT,
+    size TEXT,
+    grup TEXT,
+    unit TEXT,
+    kat TEXT,
+    model TEXT,
+    gender TEXT,
+    tipe TEXT,
+    harga NUMERIC(15,2),
+    tanggal_produk DATE,
+    tanggal_terima DATE,
+    status TEXT,
+    supplier TEXT,
+    diupdate_oleh TEXT,
+    tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    tanggal_hapus TIMESTAMPTZ
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);
+CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);
+
+-- Add unique constraint if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_master_products_artikel'
+    ) THEN
+        ALTER TABLE master_products ADD CONSTRAINT uq_master_products_artikel UNIQUE (artikel);
+    END IF;
+END$$;
+
 -- Set up the seeder
 DO $$
 DECLARE
-    color_names TEXT[];
+    color_ids INTEGER[];
     color_count INTEGER;
-    size_values TEXT[];
-    size_units TEXT[];
-    size_pairs TEXT[];
-    size_count INTEGER;
-    random_sizes TEXT;
+    size_list TEXT := '';
+    color_list TEXT := '';
     i INTEGER;
     product_id INTEGER;
-    size_list TEXT := '';
     num_sizes INTEGER;
-BEGIN
-    -- Get all color names from master_colors table
-    SELECT ARRAY_AGG(nama) INTO color_names FROM master_colors WHERE tanggal_hapus IS NULL;
+    num_colors INTEGER;
+    eu_size INTEGER;
+    is_range BOOLEAN;
     
-    -- If no colors found, use default colors
-    IF color_names IS NULL OR array_length(color_names, 1) IS NULL THEN
-        color_names := ARRAY['Merah', 'Biru', 'Hitam', 'Putih', 'Abu-abu', 'Hijau', 'Kuning'];
+    -- Arrays to hold values from master tables
+    grup_values TEXT[];
+    unit_values TEXT[];
+    kat_values TEXT[];
+    gender_values TEXT[];
+    tipe_values TEXT[];
+    
+    -- Count of values in each array
+    grup_count INTEGER;
+    unit_count INTEGER;
+    kat_count INTEGER;
+    gender_count INTEGER;
+    tipe_count INTEGER;
+    
+    -- Selected random values
+    random_grup TEXT;
+    random_unit TEXT;
+    random_kat TEXT;
+    random_gender TEXT;
+    random_tipe TEXT;
+BEGIN
+    -- Get all color IDs from master_colors table
+    SELECT ARRAY_AGG(id) INTO color_ids FROM master_colors WHERE tanggal_hapus IS NULL;
+    
+    -- If no colors found, use default message
+    IF color_ids IS NULL OR array_length(color_ids, 1) IS NULL THEN
+        RAISE EXCEPTION 'No colors found in master_colors table';
     END IF;
     
     -- Get count of colors for random selection
-    color_count := array_length(color_names, 1);
-
-    -- Get all size values and units from master_sizes table
-    SELECT 
-        ARRAY_AGG(value),
-        ARRAY_AGG(
-            CASE
-                WHEN unit = 'US Men' THEN 'USM'
-                WHEN unit = 'US Women' THEN 'USW'
-                ELSE unit
-            END
-        )
-    INTO 
-        size_values,
-        size_units
-    FROM master_sizes 
-    WHERE tanggal_hapus IS NULL;
+    color_count := array_length(color_ids, 1);
     
-    -- If no sizes found, use default sizes with units
-    IF size_values IS NULL OR array_length(size_values, 1) IS NULL THEN
-        size_values := ARRAY['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'];
-        size_units := ARRAY['EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU', 'EU'];
+    -- Get values from master tables
+    SELECT ARRAY_AGG(value) INTO grup_values FROM master_grups WHERE tanggal_hapus IS NULL;
+    SELECT ARRAY_AGG(value) INTO unit_values FROM master_units WHERE tanggal_hapus IS NULL;
+    SELECT ARRAY_AGG(value) INTO kat_values FROM master_kats WHERE tanggal_hapus IS NULL;
+    SELECT ARRAY_AGG(value) INTO gender_values FROM master_genders WHERE tanggal_hapus IS NULL;
+    SELECT ARRAY_AGG(value) INTO tipe_values FROM master_tipes WHERE tanggal_hapus IS NULL;
+    
+    -- Get counts for random selection
+    grup_count := array_length(grup_values, 1);
+    unit_count := array_length(unit_values, 1);
+    kat_count := array_length(kat_values, 1);
+    gender_count := array_length(gender_values, 1);
+    tipe_count := array_length(tipe_values, 1);
+    
+    -- Default values in case tables are empty
+    IF grup_values IS NULL OR grup_count IS NULL THEN
+        grup_values := ARRAY['Casual', 'Formal', 'Sport', 'Kids', 'Accessories'];
+        grup_count := 5;
     END IF;
     
-    -- Create array of pre-joined size+unit pairs
-    size_count := array_length(size_values, 1);
-    size_pairs := ARRAY[]::TEXT[];
-    FOR i IN 1..size_count LOOP
-        size_pairs := array_append(size_pairs, size_values[i] || size_units[i]);
-    END LOOP;
+    IF unit_values IS NULL OR unit_count IS NULL THEN
+        unit_values := ARRAY['PCS', 'BOX', 'SET'];
+        unit_count := 3;
+    END IF;
     
+    IF kat_values IS NULL OR kat_count IS NULL THEN
+        kat_values := ARRAY['Premium', 'Regular', 'Basic'];
+        kat_count := 3;
+    END IF;
+    
+    IF gender_values IS NULL OR gender_count IS NULL THEN
+        gender_values := ARRAY['Pria', 'Wanita', 'Unisex'];
+        gender_count := 3;
+    END IF;
+    
+    IF tipe_values IS NULL OR tipe_count IS NULL THEN
+        tipe_values := ARRAY['Baju', 'Celana', 'Jaket', 'Topi', 'Sepatu'];
+        tipe_count := 5;
+    END IF;
+
     -- For each product we want to insert
     FOR product_id IN 1..1000 LOOP
-        -- Generate random sizes for this product (3-5 sizes)
+        -- Generate random sizes for this product (1-4 sizes)
         size_list := '';
-        num_sizes := floor(random()*3 + 3)::int; -- 3-5 sizes
+        num_sizes := floor(random()*4 + 1)::int; -- 1-4 sizes
         
         FOR i IN 1..num_sizes LOOP
             IF i > 1 THEN
                 size_list := size_list || ',';
             END IF;
-            -- Add random size+unit pair
-            size_list := size_list || size_pairs[floor(random()*size_count + 1)::int];
+            
+            -- Generate EU size between 30 and 48
+            eu_size := floor(random()*(48-30+1) + 30)::int;
+            
+            -- Decide if this will be a single size or a range (20% chance of range)
+            is_range := random() < 0.2;
+            
+            IF is_range THEN
+                -- For a range, add 1-3 to the base size
+                size_list := size_list || eu_size || '-' || (eu_size + floor(random()*3 + 1)::int);
+            ELSE
+                -- Single size
+                size_list := size_list || eu_size;
+            END IF;
         END LOOP;
         
-        -- Insert product with random sizes
+        -- Generate random colors for this product (1-3 colors)
+        color_list := '';
+        num_colors := floor(random()*3 + 1)::int; -- 1-3 colors
+        
+        FOR i IN 1..num_colors LOOP
+            IF i > 1 THEN
+                color_list := color_list || ',';
+            END IF;
+            -- Add random color ID
+            color_list := color_list || color_ids[floor(random()*color_count + 1)]::text;
+        END LOOP;
+        
+        -- Select random values from master tables
+        random_grup := grup_values[floor(random()*grup_count + 1)];
+        random_unit := unit_values[floor(random()*unit_count + 1)];
+        random_kat := kat_values[floor(random()*kat_count + 1)];
+        random_gender := gender_values[floor(random()*gender_count + 1)];
+        random_tipe := tipe_values[floor(random()*tipe_count + 1)];
+        
+        -- Insert product with random values
         INSERT INTO master_products (
             artikel, warna, size, grup, unit, kat, model, gender, 
-            tipe, harga, tanggal_produk, tanggal_terima, usia, 
+            tipe, harga, tanggal_produk, tanggal_terima, 
             status, supplier, diupdate_oleh, tanggal_update
         ) VALUES (
             'ART-' || LPAD(CAST(product_id AS TEXT), 6, '0'),
-            color_names[floor(random()*color_count + 1)],
+            color_list,
             size_list,
-            (ARRAY['Casual', 'Formal', 'Sport', 'Kids', 'Accessories'])[floor(random()*5 + 1)],
-            (ARRAY['PCS', 'BOX', 'SET'])[floor(random()*3 + 1)],
-            (ARRAY['Premium', 'Regular', 'Basic'])[floor(random()*3 + 1)],
+            random_grup,
+            random_unit,
+            random_kat,
             'MODEL-' || floor(random()*100 + 1),
-            (ARRAY['Pria', 'Wanita', 'Unisex'])[floor(random()*3 + 1)],
-            (ARRAY['Baju', 'Celana', 'Jaket', 'Topi', 'Sepatu'])[floor(random()*5 + 1)],
+            random_gender,
+            random_tipe,
             floor(random()*(1000000-50000 + 1) + 50000)::numeric(15,2),
             CURRENT_DATE - (floor(random()*365)::int || ' days')::interval,
             CURRENT_DATE - (floor(random()*180)::int || ' days')::interval,
-            floor(random()*365 + 1)::int,
             (ARRAY['Active', 'Inactive', 'Discontinued'])[floor(random()*3 + 1)],
             (ARRAY['Supplier A', 'Supplier B', 'Supplier C', 'Supplier D', 'Supplier E'])[floor(random()*5 + 1)],
             (ARRAY['Admin1', 'Admin2', 'Admin3', 'System'])[floor(random()*4 + 1)],
@@ -107,7 +205,6 @@ BEGIN
             harga = EXCLUDED.harga,
             tanggal_produk = EXCLUDED.tanggal_produk,
             tanggal_terima = EXCLUDED.tanggal_terima,
-            usia = EXCLUDED.usia,
             status = EXCLUDED.status,
             supplier = EXCLUDED.supplier,
             diupdate_oleh = EXCLUDED.diupdate_oleh,

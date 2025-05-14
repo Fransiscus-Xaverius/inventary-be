@@ -1,14 +1,13 @@
-package master_size
+package models
 
 import (
 	"time"
 )
 
-// Size represents a shoe size in the system
-type Size struct {
+// Grup represents a grup record in the database
+type Grup struct {
 	ID            int        `json:"id"`
 	Value         string     `json:"value"`
-	Unit          string     `json:"unit"`
 	TanggalUpdate time.Time  `json:"tanggal_update"`
 	TanggalHapus  *time.Time `json:"tanggal_hapus,omitempty"`
 }
