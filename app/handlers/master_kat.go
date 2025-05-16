@@ -24,7 +24,7 @@ func GetAllKats(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -34,7 +34,7 @@ func GetAllKats(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountAllKats(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count category values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count category values", nil)
 		return
 	}
 
@@ -44,13 +44,13 @@ func GetAllKats(c *gin.Context) {
 	// Fetch paginated category values with search term applied
 	kats, err := db.FetchAllKats(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch category values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch category values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"kat_values": kats,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"kats":       kats,
 		"page":       page,
 		"total_page": totalPages,
 		"total":      totalCount,
@@ -64,34 +64,34 @@ func GetKatByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	kat, err := db.FetchKatByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category value not found"})
+			sendError(c, http.StatusNotFound, "Category value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch category value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch category value", nil)
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, kat)
+	sendSuccess(c, http.StatusOK, kat)
 }
 
 // CreateKat handles creating a new category value
 func CreateKat(c *gin.Context) {
 	var kat models.Kat
 	if err := c.ShouldBindJSON(&kat); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Validate required fields
 	if kat.Value == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Category value is required"})
+		sendError(c, http.StatusBadRequest, "Category value is required", nil)
 		return
 	}
 
@@ -101,11 +101,11 @@ func CreateKat(c *gin.Context) {
 	// Insert to database
 	err := db.InsertKat(&kat)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create category value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to create category value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusCreated, kat)
+	sendSuccess(c, http.StatusCreated, kat)
 }
 
 // UpdateKat handles updating an existing category value
@@ -113,7 +113,7 @@ func UpdateKat(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -121,9 +121,9 @@ func UpdateKat(c *gin.Context) {
 	_, err = db.FetchKatByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category value not found"})
+			sendError(c, http.StatusNotFound, "Category value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch existing category value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch existing category value", nil)
 		}
 		return
 	}
@@ -131,18 +131,18 @@ func UpdateKat(c *gin.Context) {
 	// Parse request body
 	var katToUpdate models.Kat
 	if err := c.ShouldBindJSON(&katToUpdate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Update the record
 	updatedKat, err := db.UpdateKat(id, &katToUpdate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update category value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to update category value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedKat)
+	sendSuccess(c, http.StatusOK, updatedKat)
 }
 
 // DeleteKat handles soft-deleting a category value
@@ -150,17 +150,17 @@ func DeleteKat(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteKat(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete category value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to delete category value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Category value deleted successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Category value deleted successfully"})
 }
 
 // GetDeletedKats retrieves all soft-deleted category values with pagination
@@ -176,7 +176,7 @@ func GetDeletedKats(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -186,7 +186,7 @@ func GetDeletedKats(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountDeletedKats(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count deleted category values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count deleted category values", nil)
 		return
 	}
 
@@ -196,13 +196,13 @@ func GetDeletedKats(c *gin.Context) {
 	// Fetch paginated deleted category values with search term applied
 	kats, err := db.FetchDeletedKats(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch deleted category values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted category values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"kat_values": kats,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"kats":       kats,
 		"page":       page,
 		"total_page": totalPages,
 		"total":      totalCount,
@@ -216,15 +216,15 @@ func RestoreKat(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreKat(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore category value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to restore category value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Category value restored successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Category value restored successfully"})
 }

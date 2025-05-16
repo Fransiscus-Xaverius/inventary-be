@@ -24,7 +24,7 @@ func GetAllUnits(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -34,7 +34,7 @@ func GetAllUnits(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountAllUnits(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count unit values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count unit values", nil)
 		return
 	}
 
@@ -44,18 +44,18 @@ func GetAllUnits(c *gin.Context) {
 	// Fetch paginated unit values with search term applied
 	units, err := db.FetchAllUnits(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch unit values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch unit values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"unit_values": units,
-		"page":        page,
-		"total_page":  totalPages,
-		"total":       totalCount,
-		"sort":        sortColumn,
-		"order":       sortDirection,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"units":      units,
+		"page":       page,
+		"total_page": totalPages,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 
@@ -64,34 +64,34 @@ func GetUnitByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	unit, err := db.FetchUnitByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unit value not found"})
+			sendError(c, http.StatusNotFound, "Unit value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch unit value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch unit value", nil)
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, unit)
+	sendSuccess(c, http.StatusOK, unit)
 }
 
 // CreateUnit handles creating a new unit value
 func CreateUnit(c *gin.Context) {
 	var unit models.Unit
 	if err := c.ShouldBindJSON(&unit); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Validate required fields
 	if unit.Value == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unit value is required"})
+		sendError(c, http.StatusBadRequest, "Unit value is required", nil)
 		return
 	}
 
@@ -101,11 +101,11 @@ func CreateUnit(c *gin.Context) {
 	// Insert to database
 	err := db.InsertUnit(&unit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create unit value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to create unit value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusCreated, unit)
+	sendSuccess(c, http.StatusCreated, unit)
 }
 
 // UpdateUnit handles updating an existing unit value
@@ -113,7 +113,7 @@ func UpdateUnit(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -121,9 +121,9 @@ func UpdateUnit(c *gin.Context) {
 	_, err = db.FetchUnitByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unit value not found"})
+			sendError(c, http.StatusNotFound, "Unit value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch existing unit value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch existing unit value", nil)
 		}
 		return
 	}
@@ -131,18 +131,18 @@ func UpdateUnit(c *gin.Context) {
 	// Parse request body
 	var unitToUpdate models.Unit
 	if err := c.ShouldBindJSON(&unitToUpdate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Update the record
 	updatedUnit, err := db.UpdateUnit(id, &unitToUpdate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update unit value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to update unit value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedUnit)
+	sendSuccess(c, http.StatusOK, updatedUnit)
 }
 
 // DeleteUnit handles soft-deleting a unit value
@@ -150,17 +150,17 @@ func DeleteUnit(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteUnit(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete unit value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to delete unit value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Unit value deleted successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Unit value deleted successfully"})
 }
 
 // GetDeletedUnits retrieves all soft-deleted unit values with pagination
@@ -176,7 +176,7 @@ func GetDeletedUnits(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -186,7 +186,7 @@ func GetDeletedUnits(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountDeletedUnits(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count deleted unit values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count deleted unit values", nil)
 		return
 	}
 
@@ -196,18 +196,18 @@ func GetDeletedUnits(c *gin.Context) {
 	// Fetch paginated deleted unit values with search term applied
 	units, err := db.FetchDeletedUnits(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch deleted unit values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted unit values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"unit_values": units,
-		"page":        page,
-		"total_page":  totalPages,
-		"total":       totalCount,
-		"sort":        sortColumn,
-		"order":       sortDirection,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"units":      units,
+		"page":       page,
+		"total_page": totalPages,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 
@@ -216,15 +216,15 @@ func RestoreUnit(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreUnit(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore unit value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to restore unit value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Unit value restored successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Unit value restored successfully"})
 }

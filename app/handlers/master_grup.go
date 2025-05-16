@@ -24,7 +24,7 @@ func GetAllGrups(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -34,7 +34,7 @@ func GetAllGrups(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountAllGrups(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count grup values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count grup values", nil)
 		return
 	}
 
@@ -44,18 +44,18 @@ func GetAllGrups(c *gin.Context) {
 	// Fetch paginated grup values with search term applied
 	grups, err := db.FetchAllGrups(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch grup values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch grup values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"grup_values": grups,
-		"page":        page,
-		"total_page":  totalPages,
-		"total":       totalCount,
-		"sort":        sortColumn,
-		"order":       sortDirection,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"grups":      grups,
+		"page":       page,
+		"total_page": totalPages,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 
@@ -64,34 +64,34 @@ func GetGrupByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	grup, err := db.FetchGrupByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Grup value not found"})
+			sendError(c, http.StatusNotFound, "Grup value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch grup value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch grup value", nil)
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, grup)
+	sendSuccess(c, http.StatusOK, grup)
 }
 
 // CreateGrup handles creating a new grup value
 func CreateGrup(c *gin.Context) {
 	var grup models.Grup
 	if err := c.ShouldBindJSON(&grup); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Validate required fields
 	if grup.Value == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Grup value is required"})
+		sendError(c, http.StatusBadRequest, "Grup value is required", nil)
 		return
 	}
 
@@ -101,11 +101,11 @@ func CreateGrup(c *gin.Context) {
 	// Insert to database
 	err := db.InsertGrup(&grup)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create grup value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to create grup value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusCreated, grup)
+	sendSuccess(c, http.StatusCreated, grup)
 }
 
 // UpdateGrup handles updating an existing grup value
@@ -113,7 +113,7 @@ func UpdateGrup(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -121,9 +121,9 @@ func UpdateGrup(c *gin.Context) {
 	_, err = db.FetchGrupByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Grup value not found"})
+			sendError(c, http.StatusNotFound, "Grup value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch existing grup value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch existing grup value", nil)
 		}
 		return
 	}
@@ -131,18 +131,18 @@ func UpdateGrup(c *gin.Context) {
 	// Parse request body
 	var grupToUpdate models.Grup
 	if err := c.ShouldBindJSON(&grupToUpdate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Update the record
 	updatedGrup, err := db.UpdateGrup(id, &grupToUpdate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update grup value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to update grup value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedGrup)
+	sendSuccess(c, http.StatusOK, updatedGrup)
 }
 
 // DeleteGrup handles soft-deleting a grup value
@@ -150,17 +150,17 @@ func DeleteGrup(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteGrup(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete grup value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to delete grup value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Grup value deleted successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Grup value deleted successfully"})
 }
 
 // GetDeletedGrups retrieves all soft-deleted grup values with pagination
@@ -176,7 +176,7 @@ func GetDeletedGrups(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -186,7 +186,7 @@ func GetDeletedGrups(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountDeletedGrups(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count deleted grup values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count deleted grup values", nil)
 		return
 	}
 
@@ -196,18 +196,18 @@ func GetDeletedGrups(c *gin.Context) {
 	// Fetch paginated deleted grup values with search term applied
 	grups, err := db.FetchDeletedGrups(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch deleted grup values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted grup values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"grup_values": grups,
-		"page":        page,
-		"total_page":  totalPages,
-		"total":       totalCount,
-		"sort":        sortColumn,
-		"order":       sortDirection,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"grups":      grups,
+		"page":       page,
+		"total_page": totalPages,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 
@@ -216,15 +216,15 @@ func RestoreGrup(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreGrup(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore grup value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to restore grup value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Grup value restored successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Grup value restored successfully"})
 }

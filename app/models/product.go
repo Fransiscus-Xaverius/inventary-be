@@ -12,7 +12,6 @@ type ColorInfo struct {
 }
 
 type Product struct {
-	ID            string      `json:"id"`
 	Artikel       string      `json:"artikel"`          // ARTIKEL = PRODUCT_NAME
 	No            string      `json:"no"`               // NO
 	Warna         string      `json:"warna"`            // WARNA - Now stores comma-separated IDs

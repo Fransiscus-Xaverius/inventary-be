@@ -186,7 +186,7 @@ BEGIN
             random_tipe,
             floor(random()*(1000000-50000 + 1) + 50000)::numeric(15,2),
             CURRENT_DATE - (floor(random()*365)::int || ' days')::interval,
-            CURRENT_DATE - (floor(random()*180)::int || ' days')::interval,
+            CURRENT_DATE - (floor(random()*1000)::int || ' days')::interval,
             (ARRAY['Active', 'Inactive', 'Discontinued'])[floor(random()*3 + 1)],
             (ARRAY['Supplier A', 'Supplier B', 'Supplier C', 'Supplier D', 'Supplier E'])[floor(random()*5 + 1)],
             (ARRAY['Admin1', 'Admin2', 'Admin3', 'System'])[floor(random()*4 + 1)],

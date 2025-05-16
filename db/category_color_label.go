@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/everysoft/inventary-be/app/category_color_label"
+	"github.com/everysoft/inventary-be/app/models"
 )
 
 // CreateCategoryColorLabelsTableIfNotExists ensures the category_color_labels table exists
@@ -40,8 +40,8 @@ func CreateCategoryColorLabelsTableIfNotExists() error {
 }
 
 // FetchAllCategoryColorLabels retrieves all category color labels from the database
-func FetchAllCategoryColorLabels() ([]category_color_label.CategoryColorLabel, error) {
-	labels := []category_color_label.CategoryColorLabel{}
+func FetchAllCategoryColorLabels() ([]models.CategoryColorLabel, error) {
+	labels := []models.CategoryColorLabel{}
 
 	query := `
 	SELECT 
@@ -56,7 +56,7 @@ func FetchAllCategoryColorLabels() ([]category_color_label.CategoryColorLabel, e
 	defer rows.Close()
 
 	for rows.Next() {
-		var label category_color_label.CategoryColorLabel
+		var label models.CategoryColorLabel
 		if err := rows.Scan(
 			&label.ID, &label.KodeWarna, &label.NamaWarna,
 			&label.NamaKolom, &label.Keterangan, &label.TanggalUpdate,
@@ -70,8 +70,8 @@ func FetchAllCategoryColorLabels() ([]category_color_label.CategoryColorLabel, e
 }
 
 // FetchCategoryColorLabelsByColumn retrieves category color labels filtered by column name
-func FetchCategoryColorLabelsByColumn(columnName string) ([]category_color_label.CategoryColorLabel, error) {
-	labels := []category_color_label.CategoryColorLabel{}
+func FetchCategoryColorLabelsByColumn(columnName string) ([]models.CategoryColorLabel, error) {
+	labels := []models.CategoryColorLabel{}
 
 	query := `
 	SELECT 
@@ -87,7 +87,7 @@ func FetchCategoryColorLabelsByColumn(columnName string) ([]category_color_label
 	defer rows.Close()
 
 	for rows.Next() {
-		var label category_color_label.CategoryColorLabel
+		var label models.CategoryColorLabel
 		if err := rows.Scan(
 			&label.ID, &label.KodeWarna, &label.NamaWarna,
 			&label.NamaKolom, &label.Keterangan, &label.TanggalUpdate,
@@ -101,8 +101,8 @@ func FetchCategoryColorLabelsByColumn(columnName string) ([]category_color_label
 }
 
 // FetchCategoryColorLabelByColumnAndValue retrieves a specific category color label by column name and category value
-func FetchCategoryColorLabelByColumnAndValue(columnName, categoryValue string) (*category_color_label.CategoryColorLabel, error) {
-	var label category_color_label.CategoryColorLabel
+func FetchCategoryColorLabelByColumnAndValue(columnName, categoryValue string) (*models.CategoryColorLabel, error) {
+	var label models.CategoryColorLabel
 
 	query := `
 	SELECT 

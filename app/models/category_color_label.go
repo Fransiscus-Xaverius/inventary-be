@@ -1,4 +1,4 @@
-package category_color_label
+package models
 
 import (
 	"time"

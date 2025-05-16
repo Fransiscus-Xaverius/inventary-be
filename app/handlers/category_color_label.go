@@ -13,14 +13,12 @@ func GetAllCategoryColorLabels(c *gin.Context) {
 	// Fetch all category color labels from the database
 	categoryColorLabels, err := db.FetchAllCategoryColorLabels()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch category category color labels: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch category category color labels: "+err.Error(), nil)
 		return
 	}
 
 	// Return the category color labels
-	c.JSON(http.StatusOK, gin.H{
-		"category_color_labels": categoryColorLabels,
-	})
+	sendSuccess(c, http.StatusOK, categoryColorLabels)
 }
 
 // GetCategoryColorLabelsByColumn retrieves category color labels for a specific column
@@ -30,12 +28,12 @@ func GetCategoryColorLabelsByColumn(c *gin.Context) {
 	// Fetch category color labels for the specified column from the database
 	categoryColorLabels, err := db.FetchCategoryColorLabelsByColumn(columnName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch category category color labels: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch category category color labels: "+err.Error(), nil)
 		return
 	}
 
 	// Return the category color labels
-	c.JSON(http.StatusOK, gin.H{
+	sendSuccess(c, http.StatusOK, gin.H{
 		"column":                columnName,
 		"category_color_labels": categoryColorLabels,
 	})
@@ -50,19 +48,13 @@ func GetCategoryColorLabelByColumnAndValue(c *gin.Context) {
 	categoryColorLabel, err := db.FetchCategoryColorLabelByColumnAndValue(columnName, categoryValue)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category color label not found"})
+			sendError(c, http.StatusNotFound, "Category color label not found", nil)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch category color label: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch category color label: "+err.Error(), nil)
 		return
 	}
 
 	// Return the category color label
-	c.JSON(http.StatusOK, gin.H{
-		"nama_kolom":     categoryColorLabel.NamaKolom,
-		"keterangan":     categoryColorLabel.Keterangan,
-		"kode_warna":     categoryColorLabel.KodeWarna,
-		"nama_warna":     categoryColorLabel.NamaWarna,
-		"tanggal_update": categoryColorLabel.TanggalUpdate,
-	})
+	sendSuccess(c, http.StatusOK, categoryColorLabel)
 }

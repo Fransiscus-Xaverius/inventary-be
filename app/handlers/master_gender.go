@@ -24,7 +24,7 @@ func GetAllGenders(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -34,7 +34,7 @@ func GetAllGenders(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountAllGenders(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count gender values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count gender values", nil)
 		return
 	}
 
@@ -44,18 +44,18 @@ func GetAllGenders(c *gin.Context) {
 	// Fetch paginated gender values with search term applied
 	genders, err := db.FetchAllGenders(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch gender values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch gender values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"gender_values": genders,
-		"page":          page,
-		"total_page":    totalPages,
-		"total":         totalCount,
-		"sort":          sortColumn,
-		"order":         sortDirection,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"genders":    genders,
+		"page":       page,
+		"total_page": totalPages,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 
@@ -64,34 +64,34 @@ func GetGenderByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	gender, err := db.FetchGenderByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Gender value not found"})
+			sendError(c, http.StatusNotFound, "Gender value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch gender value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch gender value", nil)
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gender)
+	sendSuccess(c, http.StatusOK, gender)
 }
 
 // CreateGender handles creating a new gender value
 func CreateGender(c *gin.Context) {
 	var gender models.Gender
 	if err := c.ShouldBindJSON(&gender); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Validate required fields
 	if gender.Value == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Gender value is required"})
+		sendError(c, http.StatusBadRequest, "Gender value is required", nil)
 		return
 	}
 
@@ -101,11 +101,11 @@ func CreateGender(c *gin.Context) {
 	// Insert to database
 	err := db.InsertGender(&gender)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create gender value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to create gender value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gender)
+	sendSuccess(c, http.StatusCreated, gender)
 }
 
 // UpdateGender handles updating an existing gender value
@@ -113,7 +113,7 @@ func UpdateGender(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -121,9 +121,9 @@ func UpdateGender(c *gin.Context) {
 	_, err = db.FetchGenderByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Gender value not found"})
+			sendError(c, http.StatusNotFound, "Gender value not found", nil)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch existing gender value"})
+			sendError(c, http.StatusInternalServerError, "Failed to fetch existing gender value", nil)
 		}
 		return
 	}
@@ -131,18 +131,18 @@ func UpdateGender(c *gin.Context) {
 	// Parse request body
 	var genderToUpdate models.Gender
 	if err := c.ShouldBindJSON(&genderToUpdate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Update the record
 	updatedGender, err := db.UpdateGender(id, &genderToUpdate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update gender value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to update gender value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedGender)
+	sendSuccess(c, http.StatusOK, updatedGender)
 }
 
 // DeleteGender handles soft-deleting a gender value
@@ -150,17 +150,17 @@ func DeleteGender(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteGender(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete gender value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to delete gender value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Gender value deleted successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Gender value deleted successfully"})
 }
 
 // GetDeletedGenders retrieves all soft-deleted gender values with pagination
@@ -176,7 +176,7 @@ func GetDeletedGenders(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
+		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -186,7 +186,7 @@ func GetDeletedGenders(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountDeletedGenders(queryStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count deleted gender values"})
+		sendError(c, http.StatusInternalServerError, "Failed to count deleted gender values", nil)
 		return
 	}
 
@@ -196,18 +196,18 @@ func GetDeletedGenders(c *gin.Context) {
 	// Fetch paginated deleted gender values with search term applied
 	genders, err := db.FetchDeletedGenders(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch deleted gender values"})
+		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted gender values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	c.JSON(http.StatusOK, gin.H{
-		"gender_values": genders,
-		"page":          page,
-		"total_page":    totalPages,
-		"total":         totalCount,
-		"sort":          sortColumn,
-		"order":         sortDirection,
+	sendSuccess(c, http.StatusOK, gin.H{
+		"gender":     genders,
+		"page":       page,
+		"total_page": totalPages,
+		"total":      totalCount,
+		"sort":       sortColumn,
+		"order":      sortDirection,
 	})
 }
 
@@ -216,15 +216,15 @@ func RestoreGender(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreGender(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore gender value: " + err.Error()})
+		sendError(c, http.StatusInternalServerError, "Failed to restore gender value: "+err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Gender value restored successfully"})
+	sendSuccess(c, http.StatusOK, gin.H{"message": "Gender value restored successfully"})
 }

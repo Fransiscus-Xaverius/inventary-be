@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"github.com/everysoft/inventary-be/app/models"
+	"github.com/everysoft/inventary-be/app/validation"
 	"github.com/everysoft/inventary-be/app/validation/common"
 	"github.com/everysoft/inventary-be/db"
-	"github.com/gin-gonic/gin"
 )
 
 // ValidationSchema contains validation rules for product creation
 type ValidationSchema struct {
 	ArtikelRequired       bool `json:"artikel_required"`
+	ArtikelUnique         bool `json:"artikel_unique"`
 	WarnaRequired         bool `json:"warna_required"`
 	SizeRequired          bool `json:"size_required"`
 	GrupRequired          bool `json:"grup_required"`
@@ -34,6 +35,7 @@ type ValidationSchema struct {
 func DefaultCreateSchema() ValidationSchema {
 	return ValidationSchema{
 		ArtikelRequired:       true,
+		ArtikelUnique:         true,
 		WarnaRequired:         true,
 		SizeRequired:          true,
 		GrupRequired:          true,
@@ -55,6 +57,7 @@ func DefaultCreateSchema() ValidationSchema {
 func DefaultUpdateSchema() ValidationSchema {
 	return ValidationSchema{
 		ArtikelRequired:       false,
+		ArtikelUnique:         false,
 		WarnaRequired:         false,
 		SizeRequired:          false,
 		GrupRequired:          false,
@@ -73,40 +76,40 @@ func DefaultUpdateSchema() ValidationSchema {
 }
 
 // ValidateProduct performs all validations for product creation and update
-func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
+func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.ValidationError {
 	// Validate Artikel (required and unique)
 	if schema.ArtikelRequired && strings.TrimSpace(p.Artikel) == "" {
-		return gin.H{
-			"column":  "artikel",
-			"message": "Artikel is required",
+		return &validation.ValidationError{
+			Error:      "Artikel is required",
+			ErrorField: "artikel",
 		}
 	}
 
 	// Check for duplicate artikel if not empty
-	if strings.TrimSpace(p.Artikel) != "" {
+	if schema.ArtikelUnique && strings.TrimSpace(p.Artikel) != "" {
 		_, err := db.FetchProductByArtikelIncludeDeleted(p.Artikel)
 		if err == nil || (err != nil && err.Error() != "not_found") {
 			// If no error, then product exists
 			// Or if there's an error but it's not "not_found", then there's a different issue
 			if err == nil {
-				return gin.H{
-					"column":  "artikel",
-					"message": "Product with this artikel already exists",
+				return &validation.ValidationError{
+					Error:      "Product with this artikel already exists",
+					ErrorField: "artikel",
 				}
 			}
 			// Otherwise, there was a database error
-			return gin.H{
-				"column":  "artikel",
-				"message": "Error checking artikel uniqueness: " + err.Error(),
+			return &validation.ValidationError{
+				Error:      "Error checking artikel uniqueness: " + err.Error(),
+				ErrorField: "artikel",
 			}
 		}
 	}
 
 	// Validate warna (required, comma-separated color IDs)
 	if schema.WarnaRequired && strings.TrimSpace(p.Warna) == "" {
-		return gin.H{
-			"column":  "warna",
-			"message": "Warna is required",
+		return &validation.ValidationError{
+			Error:      "Warna is required",
+			ErrorField: "warna",
 		}
 	}
 
@@ -125,23 +128,23 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 
 			colorID, err := strconv.Atoi(colorIDStr)
 			if err != nil {
-				return gin.H{
-					"column":  "warna",
-					"message": "Invalid color ID format: " + colorIDStr,
+				return &validation.ValidationError{
+					Error:      "Invalid color ID format: " + colorIDStr,
+					ErrorField: "warna",
 				}
 			}
 
 			_, err = db.FetchColorByID(colorID)
 			if err != nil {
 				if err.Error() == "not_found" {
-					return gin.H{
-						"column":  "warna",
-						"message": "Color ID not found: " + colorIDStr,
+					return &validation.ValidationError{
+						Error:      "Color ID not found: " + colorIDStr,
+						ErrorField: "warna",
 					}
 				}
-				return gin.H{
-					"column":  "warna",
-					"message": "Error checking color ID: " + err.Error(),
+				return &validation.ValidationError{
+					Error:      "Error checking color ID: " + err.Error(),
+					ErrorField: "warna",
 				}
 			}
 		}
@@ -149,9 +152,9 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 
 	// Validate size (required, EU shoe sizes or ranges)
 	if schema.SizeRequired && strings.TrimSpace(p.Size) == "" {
-		return gin.H{
-			"column":  "size",
-			"message": "Size is required",
+		return &validation.ValidationError{
+			Error:      "Size is required",
+			ErrorField: "size",
 		}
 	}
 
@@ -172,9 +175,9 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 			if strings.Contains(s, "-") {
 				rangeParts := strings.Split(s, "-")
 				if len(rangeParts) != 2 {
-					return gin.H{
-						"column":  "size",
-						"message": "Invalid size range format: " + s,
+					return &validation.ValidationError{
+						Error:      "Invalid size range format: " + s,
+						ErrorField: "size",
 					}
 				}
 
@@ -182,18 +185,18 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 				end, errEnd := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
 
 				if errStart != nil || errEnd != nil || start >= end {
-					return gin.H{
-						"column":  "size",
-						"message": "Invalid size range values in: " + s,
+					return &validation.ValidationError{
+						Error:      "Invalid size range values in: " + s,
+						ErrorField: "size",
 					}
 				}
 			} else {
 				// Single size
 				_, err := strconv.Atoi(s)
 				if err != nil {
-					return gin.H{
-						"column":  "size",
-						"message": "Size must be numeric: " + s,
+					return &validation.ValidationError{
+						Error:      "Size must be numeric: " + s,
+						ErrorField: "size",
 					}
 				}
 			}
@@ -204,112 +207,112 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 
 	// Grup
 	if schema.GrupRequired && strings.TrimSpace(p.Grup) == "" {
-		return gin.H{
-			"column":  "grup",
-			"message": "Grup is required",
+		return &validation.ValidationError{
+			Error:      "Grup is required",
+			ErrorField: "grup",
 		}
 	}
 
 	if strings.TrimSpace(p.Grup) != "" {
-		if errObj := common.ValidateMasterDataID("master_grups", "grup", p.Grup); errObj != nil {
-			return gin.H(errObj)
+		if validationError := common.ValidateMasterDataID("master_grups", "grup", p.Grup); validationError != nil {
+			return validationError
 		}
 	}
 
 	// Unit
 	if schema.UnitRequired && strings.TrimSpace(p.Unit) == "" {
-		return gin.H{
-			"column":  "unit",
-			"message": "Unit is required",
+		return &validation.ValidationError{
+			Error:      "Unit is required",
+			ErrorField: "unit",
 		}
 	}
 
 	if strings.TrimSpace(p.Unit) != "" {
 		if errObj := common.ValidateMasterDataID("master_units", "unit", p.Unit); errObj != nil {
-			return gin.H(errObj)
+			return errObj
 		}
 	}
 
 	// Kat
 	if schema.KatRequired && strings.TrimSpace(p.Kat) == "" {
-		return gin.H{
-			"column":  "kat",
-			"message": "Kat is required",
+		return &validation.ValidationError{
+			Error:      "Kat is required",
+			ErrorField: "kat",
 		}
 	}
 
 	if strings.TrimSpace(p.Kat) != "" {
-		if errObj := common.ValidateMasterDataID("master_kats", "kat", p.Kat); errObj != nil {
-			return gin.H(errObj)
+		if validationError := common.ValidateMasterDataID("master_kats", "kat", p.Kat); validationError != nil {
+			return validationError
 		}
 	}
 
 	// Gender
 	if schema.GenderRequired && strings.TrimSpace(p.Gender) == "" {
-		return gin.H{
-			"column":  "gender",
-			"message": "Gender is required",
+		return &validation.ValidationError{
+			Error:      "Gender is required",
+			ErrorField: "gender",
 		}
 	}
 
 	if strings.TrimSpace(p.Gender) != "" {
-		if errObj := common.ValidateMasterDataID("master_genders", "gender", p.Gender); errObj != nil {
-			return gin.H(errObj)
+		if validationError := common.ValidateMasterDataID("master_genders", "gender", p.Gender); validationError != nil {
+			return validationError
 		}
 	}
 
 	// Tipe
 	if schema.TipeRequired && strings.TrimSpace(p.Tipe) == "" {
-		return gin.H{
-			"column":  "tipe",
-			"message": "Tipe is required",
+		return &validation.ValidationError{
+			Error:      "Tipe is required",
+			ErrorField: "tipe",
 		}
 	}
 
 	if strings.TrimSpace(p.Tipe) != "" {
-		if errObj := common.ValidateMasterDataID("master_tipes", "tipe", p.Tipe); errObj != nil {
-			return gin.H(errObj)
+		if validationError := common.ValidateMasterDataID("master_tipes", "tipe", p.Tipe); validationError != nil {
+			return validationError
 		}
 	}
 
 	// Model (required)
 	if schema.ModelRequired && strings.TrimSpace(p.Model) == "" {
-		return gin.H{
-			"column":  "model",
-			"message": "Model is required",
+		return &validation.ValidationError{
+			Error:      "Model is required",
+			ErrorField: "model",
 		}
 	}
 
 	// Validate harga (required, numeric)
 	if schema.HargaRequired && p.Harga <= 0 {
-		return gin.H{
-			"column":  "harga",
-			"message": "Harga is required and must be a positive number",
+		return &validation.ValidationError{
+			Error:      "Harga is required and must be a positive number",
+			ErrorField: "harga",
 		}
 	}
 
 	// Validate tanggal_produk (required, valid date)
 	zeroTime := time.Time{}
 	if schema.TanggalProdukRequired && p.TanggalProduk == zeroTime {
-		return gin.H{
-			"column":  "tanggal_produk",
-			"message": "Tanggal produk is required",
+		return &validation.ValidationError{
+			Error:      "Tanggal produk is required",
+			ErrorField: "tanggal_produk",
 		}
 	}
 
 	// Validate tanggal_terima (required, valid date)
 	if schema.TanggalTerimaRequired && p.TanggalTerima == zeroTime {
-		return gin.H{
-			"column":  "tanggal_terima",
-			"message": "Tanggal terima is required",
+		return &validation.ValidationError{
+			Error:      "Tanggal terima is required",
+			ErrorField: "tanggal_terima",
 		}
 	}
 
 	// Validate status (required, must be one of "active", "inactive", or "discontinued")
 	if schema.StatusRequired && strings.TrimSpace(p.Status) == "" {
-		return gin.H{
-			"column":  "status",
-			"message": "Status is required",
+		return &validation.ValidationError{
+			Error:      "Status is required",
+			ErrorField: "status",
 		}
 	}
 
@@ -324,26 +327,26 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 		}
 
 		if !validStatuses[status] {
-			return gin.H{
-				"column":  "status",
-				"message": "Status must be either 'active', 'inactive', or 'discontinued'",
+			return &validation.ValidationError{
+				Error:      "Status must be either 'active', 'inactive', or 'discontinued'",
+				ErrorField: "status",
 			}
 		}
 	}
 
 	// Validate supplier (required)
 	if schema.SupplierRequired && strings.TrimSpace(p.Supplier) == "" {
-		return gin.H{
-			"column":  "supplier",
-			"message": "Supplier is required",
+		return &validation.ValidationError{
+			Error:      "Supplier is required",
+			ErrorField: "supplier",
 		}
 	}
 
 	// Validate diupdate_oleh (required)
 	if schema.DiupdateOlehRequired && strings.TrimSpace(p.DiupdateOleh) == "" {
-		return gin.H{
-			"column":  "diupdate_oleh",
-			"message": "Diupdate oleh is required",
+		return &validation.ValidationError{
+			Error:      "Diupdate oleh is required",
+			ErrorField: "diupdate_oleh",
 		}
 	}
 
@@ -352,12 +355,12 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) gin.H {
 }
 
 // ValidateCreate performs validation for product creation
-func ValidateCreate(p *models.Product) gin.H {
+func ValidateCreate(p *models.Product) *validation.ValidationError {
 	return ValidateProduct(p, DefaultCreateSchema())
 }
 
 // ValidateUpdate performs validation for product update
-func ValidateUpdate(p *models.Product) gin.H {
+func ValidateUpdate(p *models.Product) *validation.ValidationError {
 	// Skip artikel uniqueness check for updates
 	schema := DefaultUpdateSchema()
 	return ValidateProduct(p, schema)

@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 
+	"github.com/everysoft/inventary-be/app/validation"
 	"github.com/everysoft/inventary-be/db"
 )
 
@@ -14,26 +15,26 @@ func MasterDataExists(tableName string, id string) (bool, error) {
 }
 
 // ValidateMasterDataID checks if an ID exists in a master data table and returns an error object if not
-func ValidateMasterDataID(tableName string, fieldName string, id string) map[string]interface{} {
+func ValidateMasterDataID(tableName string, fieldName string, id string) *validation.ValidationError {
 	if id == "" {
-		return map[string]interface{}{
-			"column":  fieldName,
-			"message": fmt.Sprintf("%s is required", fieldName),
+		return &validation.ValidationError{
+			Error:      fmt.Sprintf("%s is required", fieldName),
+			ErrorField: fieldName,
 		}
 	}
 
 	exists, err := MasterDataExists(tableName, id)
 	if err != nil {
-		return map[string]interface{}{
-			"column":  fieldName,
-			"message": fmt.Sprintf("Error checking %s: %s", fieldName, err.Error()),
+		return &validation.ValidationError{
+			Error:      fmt.Sprintf("Error checking %s: %s", fieldName, err.Error()),
+			ErrorField: fieldName,
 		}
 	}
 
 	if !exists {
-		return map[string]interface{}{
-			"column":  fieldName,
-			"message": fmt.Sprintf("%s ID does not exist in master data", fieldName),
+		return &validation.ValidationError{
+			Error:      fmt.Sprintf("%s ID does not exist in master data", fieldName),
+			ErrorField: fieldName,
 		}
 	}
 

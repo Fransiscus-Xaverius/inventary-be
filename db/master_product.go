@@ -135,7 +135,6 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
-			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR unit ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -157,6 +156,13 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 			OR status ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR supplier ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR diupdate_oleh ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR EXISTS (
+				SELECT 1 FROM master_colors mc
+				WHERE (mc.nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `)
+				AND CAST(mc.id AS TEXT) IN (
+					SELECT unnest(string_to_array(master_products.warna, ','))
+				)
+			)
 		)`
 		baseQuery += searchQuery
 		args = append(args, "%"+queryStr+"%")
@@ -164,7 +170,7 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	}
 
 	// Add filter conditions for each field
-	validFilterFields := []string{"warna", "size", "grup", "unit", "kat", "model", "gender", "tipe", "status", "supplier"}
+	validFilterFields := []string{"grup", "unit", "kat", "model", "gender", "tipe", "status", "supplier"}
 	for _, field := range validFilterFields {
 		if value, ok := filters[field]; ok && value != "" {
 			filterQuery := ` AND ` + field + ` = $` + fmt.Sprintf("%d", paramCount)
