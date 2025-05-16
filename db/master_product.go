@@ -371,86 +371,31 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 	paramCount := 1
 	fieldsToUpdate := 0
 
-	// Check each field and only update if it's not empty in the request
-	// For string fields
-	if p.Warna != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" warna = $%d,", paramCount)
-		args = append(args, p.Warna)
-		paramCount++
+	// Process string fields
+	stringFields := map[string]string{
+		"warna":         p.Warna,
+		"size":          p.Size,
+		"grup":          p.Grup,
+		"unit":          p.Unit,
+		"kat":           p.Kat,
+		"model":         p.Model,
+		"gender":        p.Gender,
+		"tipe":          p.Tipe,
+		"status":        p.Status,
+		"supplier":      p.Supplier,
+		"diupdate_oleh": p.DiupdateOleh,
 	}
 
-	if p.Size != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" size = $%d,", paramCount)
-		args = append(args, p.Size)
-		paramCount++
+	for field, value := range stringFields {
+		if value != "" {
+			fieldsToUpdate++
+			query += fmt.Sprintf(" %s = $%d,", field, paramCount)
+			args = append(args, value)
+			paramCount++
+		}
 	}
 
-	if p.Grup != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" grup = $%d,", paramCount)
-		args = append(args, p.Grup)
-		paramCount++
-	}
-
-	if p.Unit != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" unit = $%d,", paramCount)
-		args = append(args, p.Unit)
-		paramCount++
-	}
-
-	if p.Kat != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" kat = $%d,", paramCount)
-		args = append(args, p.Kat)
-		paramCount++
-	}
-
-	if p.Model != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" model = $%d,", paramCount)
-		args = append(args, p.Model)
-		paramCount++
-	}
-
-	if p.Gender != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" gender = $%d,", paramCount)
-		args = append(args, p.Gender)
-		paramCount++
-	}
-
-	if p.Tipe != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" tipe = $%d,", paramCount)
-		args = append(args, p.Tipe)
-		paramCount++
-	}
-
-	if p.Status != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" status = $%d,", paramCount)
-		args = append(args, p.Status)
-		paramCount++
-	}
-
-	if p.Supplier != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" supplier = $%d,", paramCount)
-		args = append(args, p.Supplier)
-		paramCount++
-	}
-
-	if p.DiupdateOleh != "" {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" diupdate_oleh = $%d,", paramCount)
-		args = append(args, p.DiupdateOleh)
-		paramCount++
-	}
-
-	// For numeric fields, check if they're initialized
+	// Process numeric field
 	if p.Harga != 0 {
 		fieldsToUpdate++
 		query += fmt.Sprintf(" harga = $%d,", paramCount)
@@ -458,20 +403,20 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		paramCount++
 	}
 
-	// For date fields, check if they're not zero time
+	// Process date fields
 	zeroTime := time.Time{}
-	if p.TanggalProduk != zeroTime {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" tanggal_produk = $%d,", paramCount)
-		args = append(args, p.TanggalProduk)
-		paramCount++
+	dateFields := map[string]time.Time{
+		"tanggal_produk": p.TanggalProduk,
+		"tanggal_terima": p.TanggalTerima,
 	}
 
-	if p.TanggalTerima != zeroTime {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" tanggal_terima = $%d,", paramCount)
-		args = append(args, p.TanggalTerima)
-		paramCount++
+	for field, value := range dateFields {
+		if value != zeroTime {
+			fieldsToUpdate++
+			query += fmt.Sprintf(" %s = $%d,", field, paramCount)
+			args = append(args, value)
+			paramCount++
+		}
 	}
 
 	// Always update tanggal_update

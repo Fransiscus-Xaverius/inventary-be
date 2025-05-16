@@ -101,12 +101,12 @@ func RunSeeders() error {
 		path string
 	}{
 		{name: "colors", path: "db/sql/seeder_master_colors.sql"},                        // First load base colors
-		{name: "category_color_labels", path: "db/sql/seeder_category_color_labels.sql"}, // Then category colors
 		{name: "grups", path: "db/sql/seeder_master_grups.sql"},                          // Master grups
 		{name: "units", path: "db/sql/seeder_master_units.sql"},                          // Master units
 		{name: "kats", path: "db/sql/seeder_master_kats.sql"},                            // Master categories
 		{name: "genders", path: "db/sql/seeder_master_genders.sql"},                      // Master genders
 		{name: "tipes", path: "db/sql/seeder_master_tipes.sql"},                          // Master tipes
+		{name: "category_color_labels", path: "db/sql/seeder_category_color_labels.sql"}, // Then category colors
 		{name: "products", path: "db/sql/seeder_master_products.sql"},                    // Finally load products with references
 	}
 

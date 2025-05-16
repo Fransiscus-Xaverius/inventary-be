@@ -135,68 +135,46 @@ func UpdateProduct(c *gin.Context) {
 	// Create a product struct with the existing data
 	productToUpdate := existingProduct
 
-	// Only update fields that were provided in the request
-	if warna, ok := requestBody["warna"].(string); ok {
-		productToUpdate.Warna = warna
+	// Define string fields mapping and update in one loop
+	stringFields := map[string]*string{
+		"warna":         &productToUpdate.Warna,
+		"size":          &productToUpdate.Size,
+		"grup":          &productToUpdate.Grup,
+		"unit":          &productToUpdate.Unit,
+		"kat":           &productToUpdate.Kat,
+		"model":         &productToUpdate.Model,
+		"gender":        &productToUpdate.Gender,
+		"tipe":          &productToUpdate.Tipe,
+		"status":        &productToUpdate.Status,
+		"supplier":      &productToUpdate.Supplier,
+		"diupdate_oleh": &productToUpdate.DiupdateOleh,
 	}
 
-	if size, ok := requestBody["size"].(string); ok {
-		productToUpdate.Size = size
+	// Process all string fields
+	for field, target := range stringFields {
+		if value, ok := requestBody[field].(string); ok {
+			*target = value
+		}
 	}
 
-	if grup, ok := requestBody["grup"].(string); ok {
-		productToUpdate.Grup = grup
-	}
-
-	if unit, ok := requestBody["unit"].(string); ok {
-		productToUpdate.Unit = unit
-	}
-
-	if kat, ok := requestBody["kat"].(string); ok {
-		productToUpdate.Kat = kat
-	}
-
-	if model, ok := requestBody["model"].(string); ok {
-		productToUpdate.Model = model
-	}
-
-	if gender, ok := requestBody["gender"].(string); ok {
-		productToUpdate.Gender = gender
-	}
-
-	if tipe, ok := requestBody["tipe"].(string); ok {
-		productToUpdate.Tipe = tipe
-	}
-
-	if status, ok := requestBody["status"].(string); ok {
-		productToUpdate.Status = status
-	}
-
-	if supplier, ok := requestBody["supplier"].(string); ok {
-		productToUpdate.Supplier = supplier
-	}
-
-	if diupdateOleh, ok := requestBody["diupdate_oleh"].(string); ok {
-		productToUpdate.DiupdateOleh = diupdateOleh
-	}
-
-	// Handle numeric fields
+	// Handle numeric field
 	if harga, ok := requestBody["harga"].(float64); ok {
 		productToUpdate.Harga = harga
 	}
 
-	// Handle date fields if they're provided
-	if tanggalProduk, ok := requestBody["tanggal_produk"].(string); ok && tanggalProduk != "" {
-		date, err := time.Parse("2006-01-02", tanggalProduk)
-		if err == nil {
-			productToUpdate.TanggalProduk = date
-		}
+	// Define date fields mapping and update in one loop
+	dateFields := map[string]*time.Time{
+		"tanggal_produk": &productToUpdate.TanggalProduk,
+		"tanggal_terima": &productToUpdate.TanggalTerima,
 	}
 
-	if tanggalTerima, ok := requestBody["tanggal_terima"].(string); ok && tanggalTerima != "" {
-		date, err := time.Parse("2006-01-02", tanggalTerima)
-		if err == nil {
-			productToUpdate.TanggalTerima = date
+	// Process all date fields
+	for field, target := range dateFields {
+		if dateStr, ok := requestBody[field].(string); ok && dateStr != "" {
+			date, err := time.Parse("2006-01-02", dateStr)
+			if err == nil {
+				*target = date
+			}
 		}
 	}
 
