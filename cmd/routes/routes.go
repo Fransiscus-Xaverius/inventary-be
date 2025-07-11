@@ -13,7 +13,7 @@ func SetupRoutes() *gin.Engine {
 	router := gin.Default()
 
 	// Set a higher limit for multipart forms (e.g., 8MB)
-	router.MaxMultipartMemory = 8 << 20  // 8MB
+	router.MaxMultipartMemory = 100 << 20 // 100MB
 
 	// Serve static files from the 'uploads' directory
 	router.Static("/uploads", "uploads")

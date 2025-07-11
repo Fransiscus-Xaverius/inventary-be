@@ -28,7 +28,7 @@ func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination st
 		return "", fmt.Errorf("failed to save uploaded file: %w", err)
 	}
 
-	return "/uploads/" + filename, nil // Return the URL path
+	return "/" + destination + filename, nil // Return the URL path
 }
 
 // GetAllBanners handles fetching all banners with pagination and search
@@ -131,7 +131,7 @@ func CreateBanner(c *gin.Context) {
 	}
 
 	// Save the file to the uploads directory
-	filePath, err := SaveUploadedFile(c, file, "uploads/banners")
+	filePath, err := SaveUploadedFile(c, file, "uploads/banners/")
 	if err != nil {
 		sendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
 		return
@@ -189,7 +189,7 @@ func UpdateBanner(c *gin.Context) {
 	file, err := c.FormFile("image")
 	if err == nil && file != nil {
 		// New image uploaded, save it
-		filePath, err := SaveUploadedFile(c, file, "uploads")
+		filePath, err := SaveUploadedFile(c, file, "uploads/banners/")
 		if err != nil {
 			sendError(c, http.StatusInternalServerError, "Failed to save new image: "+err.Error(), nil)
 			return
