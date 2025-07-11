@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
 	"strings"
@@ -78,8 +79,36 @@ func GetProductByArtikel(c *gin.Context) {
 
 // CreateProduct handles creating a new product
 func CreateProduct(c *gin.Context) {
+	var requestBody map[string]interface{}
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	// Validate marketplace keys
+	if marketplace, ok := requestBody["marketplace"].(map[string]interface{}); ok {
+		validKeys := map[string]bool{
+			"tokopedia": true,
+			"shopee":    true,
+			"lazada":    true,
+			"tiktok":    true,
+			"bukalapak": true,
+		}
+		for key := range marketplace {
+			if !validKeys[key] {
+				sendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+				return
+			}
+		}
+	} else {
+		sendError(c, http.StatusBadRequest, "Marketplace object is required", nil)
+		return
+	}
+
+	// Manually create product from request body
 	var product models.Product
-	if err := c.ShouldBindJSON(&product); err != nil {
+	jsonBody, _ := json.Marshal(requestBody)
+	if err := json.Unmarshal(jsonBody, &product); err != nil {
 		sendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
@@ -137,6 +166,8 @@ func UpdateProduct(c *gin.Context) {
 
 	// Define string fields mapping and update in one loop
 	stringFields := map[string]*string{
+		"nama":          &productToUpdate.Nama,
+		"deskripsi":     &productToUpdate.Deskripsi,
 		"warna":         &productToUpdate.Warna,
 		"size":          &productToUpdate.Size,
 		"grup":          &productToUpdate.Grup,
@@ -160,6 +191,46 @@ func UpdateProduct(c *gin.Context) {
 	// Handle numeric field
 	if harga, ok := requestBody["harga"].(float64); ok {
 		productToUpdate.Harga = harga
+	}
+
+	// Handle numeric field
+	if hargaDiskon, ok := requestBody["harga_diskon"].(float64); ok {
+		productToUpdate.HargaDiskon = hargaDiskon
+	}
+
+	// Handle rating field
+	if rating, ok := requestBody["rating"].(float64); ok {
+		productToUpdate.Rating = rating
+	}
+
+	// Handle marketplace field
+	if marketplace, ok := requestBody["marketplace"].(map[string]interface{}); ok {
+		// Validate keys
+		validKeys := map[string]bool{
+			"tokopedia": true,
+			"shopee":    true,
+			"lazada":    true,
+			"tiktok":    true,
+			"bukalapak": true,
+		}
+		for key := range marketplace {
+			if !validKeys[key] {
+				sendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+				return
+			}
+		}
+
+		// Unmarshal to existing struct
+		marketplaceJSON, _ := json.Marshal(marketplace)
+		if err := json.Unmarshal(marketplaceJSON, &productToUpdate.Marketplace); err != nil {
+			sendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
+			return
+		}
+	}
+
+	// Handle gambar field
+	if gambar, ok := requestBody["gambar"].([]string); ok {
+		productToUpdate.Gambar = gambar
 	}
 
 	// Define date fields mapping and update in one loop
