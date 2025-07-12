@@ -55,6 +55,11 @@ func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination st
 		return "", fmt.Errorf("invalid image format: %w", err)
 	}
 
+	// Check resolution
+	if config.Width < 1280 && config.Height < 720 {
+		return "", fmt.Errorf("image resolution must be at least 1280px wide or 720px high")
+	}
+
 	// Check aspect ratio
 	imageAspectRatio := float64(config.Width) / float64(config.Height)
 	valid := false
