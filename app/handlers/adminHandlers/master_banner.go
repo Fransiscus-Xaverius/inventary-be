@@ -1,7 +1,12 @@
 package adminHandlers
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -16,15 +21,61 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	maxFileSize      = 20 * 1024 * 1024 // 20MB
+	aspectRatioTolerance = 0.1
+)
+
+var allowedAspectRatios = []float64{
+	16.0 / 9.0,  // 1.777...
+	16.0 / 10.0, // 1.6
+}
+
 // SaveUploadedFile saves the uploaded file to the specified directory
 func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination string) (string, error) {
+	// Check file size
+	if file.Size > maxFileSize {
+		return "", fmt.Errorf("file size exceeds the limit of 20MB")
+	}
+
+	// Read file for aspect ratio check
+	src, err := file.Open()
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer src.Close()
+
+	// TeeReader allows reading the stream twice
+	var buf bytes.Buffer
+	tee := io.TeeReader(src, &buf)
+
+	// Decode image configuration
+	config, _, err := image.DecodeConfig(tee)
+	if err != nil {
+		return "", fmt.Errorf("invalid image format: %w", err)
+	}
+
+	// Check aspect ratio
+	imageAspectRatio := float64(config.Width) / float64(config.Height)
+	valid := false
+	for _, allowedRatio := range allowedAspectRatios {
+		if math.Abs(imageAspectRatio-allowedRatio) <= aspectRatioTolerance {
+			valid = true
+			break
+		}
+	}
+
+	if !valid {
+		return "", fmt.Errorf("invalid image aspect ratio. Allowed ratios are around 16:9 or 16:10")
+	}
+
 	// Generate a unique filename
 	extension := filepath.Ext(file.Filename)
 	filename := uuid.New().String() + extension
 	filePath := filepath.Join(destination, filename)
 
-	// Save the file
-	err := c.SaveUploadedFile(file, filePath)
+	// Save the file from the buffer
+	err = c.SaveUploadedFile(file, filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to save uploaded file: %w", err)
 	}
@@ -301,15 +352,4 @@ func RestoreBanner(c *gin.Context) {
 	}
 
 	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Banner restored successfully"})
-}
-
-// GetActiveBanners retrieves all active banners, ordered by order_index
-func GetActiveBanners(c *gin.Context) {
-	isActive := true
-	banners, err := db.FetchAllBanners(100, 0, "", &isActive, "order_index", "asc") // Set a reasonable limit, e.g., 100
-	if err != nil {
-		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch active banners: "+err.Error(), nil)
-		return
-	}
-	handlers.SendSuccess(c, http.StatusOK, gin.H{"banners": banners})
 }
