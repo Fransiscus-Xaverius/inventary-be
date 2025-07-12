@@ -15,6 +15,8 @@ import (
 type ValidationSchema struct {
 	ArtikelRequired       bool `json:"artikel_required"`
 	ArtikelUnique         bool `json:"artikel_unique"`
+	NamaRequired          bool `json:"nama_required"`
+	DeskripsiRequired     bool `json:"deskripsi_required"`
 	WarnaRequired         bool `json:"warna_required"`
 	SizeRequired          bool `json:"size_required"`
 	GrupRequired          bool `json:"grup_required"`
@@ -24,6 +26,8 @@ type ValidationSchema struct {
 	GenderRequired        bool `json:"gender_required"`
 	TipeRequired          bool `json:"tipe_required"`
 	HargaRequired         bool `json:"harga_required"`
+	MarketplaceRequired   bool `json:"marketplace_required"`
+	GambarRequired        bool `json:"gambar_required"`
 	TanggalProdukRequired bool `json:"tanggal_produk_required"`
 	TanggalTerimaRequired bool `json:"tanggal_terima_required"`
 	StatusRequired        bool `json:"status_required"`
@@ -36,6 +40,8 @@ func DefaultCreateSchema() ValidationSchema {
 	return ValidationSchema{
 		ArtikelRequired:       true,
 		ArtikelUnique:         true,
+		NamaRequired:          true,
+		DeskripsiRequired:     true,
 		WarnaRequired:         true,
 		SizeRequired:          true,
 		GrupRequired:          true,
@@ -45,6 +51,8 @@ func DefaultCreateSchema() ValidationSchema {
 		GenderRequired:        true,
 		TipeRequired:          true,
 		HargaRequired:         true,
+		MarketplaceRequired:   true,
+		GambarRequired:        true,
 		TanggalProdukRequired: true,
 		TanggalTerimaRequired: true,
 		StatusRequired:        true,
@@ -58,6 +66,8 @@ func DefaultUpdateSchema() ValidationSchema {
 	return ValidationSchema{
 		ArtikelRequired:       false,
 		ArtikelUnique:         false,
+		NamaRequired:          false,
+		DeskripsiRequired:     false,
 		WarnaRequired:         false,
 		SizeRequired:          false,
 		GrupRequired:          false,
@@ -67,6 +77,8 @@ func DefaultUpdateSchema() ValidationSchema {
 		GenderRequired:        false,
 		TipeRequired:          false,
 		HargaRequired:         false,
+		MarketplaceRequired:   false,
+		GambarRequired:        false,
 		TanggalProdukRequired: false,
 		TanggalTerimaRequired: false,
 		StatusRequired:        false,
@@ -205,6 +217,31 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 
 	// Validate master data fields
 
+	// Nama
+	if schema.NamaRequired && strings.TrimSpace(p.Nama) == "" {
+		return &validation.ValidationError{
+			Error:      "Nama is required",
+			ErrorField: "nama",
+		}
+	}
+
+	// Deskripsi
+	if schema.DeskripsiRequired && strings.TrimSpace(p.Deskripsi) == "" {
+		return &validation.ValidationError{
+			Error:      "Deskripsi is required",
+			ErrorField: "deskripsi",
+		}
+	}
+
+	// Marketplace
+	if schema.MarketplaceRequired && p.Marketplace == (models.MarketplaceInfo{}) {
+		return &validation.ValidationError{
+			Error:      "Marketplace is required",
+			ErrorField: "marketplace",
+		}
+	}
+
+	// Gambar
 	// Grup
 	if schema.GrupRequired && strings.TrimSpace(p.Grup) == "" {
 		return &validation.ValidationError{

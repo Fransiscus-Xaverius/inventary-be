@@ -28,11 +28,14 @@ type PaginatedData struct {
 
 // sendError sends a standardized error response
 func sendError(c *gin.Context, statusCode int, message string, errorField *string) {
-	c.JSON(statusCode, APIResponse{
-		Success:    false,
-		Error:      message,
-		ErrorField: *errorField,
-	})
+	response := APIResponse{
+		Success: false,
+		Error:   message,
+	}
+	if errorField != nil {
+		response.ErrorField = *errorField
+	}
+	c.JSON(statusCode, response)
 }
 
 // sendSuccess sends a standardized success response

@@ -2,12 +2,14 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/everysoft/inventary-be/app/models"
+	"github.com/lib/pq"
 )
 
 func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
@@ -68,6 +70,9 @@ func CreateMasterProductsTableIfNotExists() error {
 		`CREATE TABLE IF NOT EXISTS master_products (
 			no SERIAL PRIMARY KEY,
 			artikel TEXT NOT NULL,
+			nama TEXT,
+			deskripsi TEXT,
+			rating NUMERIC(2,1),
 			warna TEXT,
 			size TEXT,
 			grup TEXT,
@@ -77,6 +82,9 @@ func CreateMasterProductsTableIfNotExists() error {
 			gender TEXT,
 			tipe TEXT,
 			harga NUMERIC(15,2),
+			harga_diskon NUMERIC(15,2),
+			marketplace JSONB,
+			gambar TEXT[],
 			tanggal_produk DATE,
 			tanggal_terima DATE,
 			status TEXT,
@@ -109,12 +117,13 @@ func CreateMasterProductsTableIfNotExists() error {
 }
 
 func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]models.Product, error) {
+	log.Println("DB: Fetching all products")
 	products := []models.Product{}
 
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, 
+		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, 
 		CASE 
 			WHEN tanggal_terima IS NOT NULL THEN 
 				CASE
@@ -135,6 +144,9 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(rating AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR unit ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -143,6 +155,12 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -184,9 +202,9 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	orderBy := " ORDER BY "
 	// Map of valid column names to prevent SQL injection
 	validColumns := map[string]bool{
-		"no": true, "artikel": true, "warna": true, "size": true, "grup": true,
+		"no": true, "artikel": true, "nama": true, "deskripsi": true, "rating": true, "warna": true, "size": true, "grup": true,
 		"unit": true, "kat": true, "model": true, "gender": true, "tipe": true,
-		"harga": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
+		"harga": true, "harga_diskon": true, "marketplace": true, "gambar": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
 		"status": true, "supplier": true, "diupdate_oleh": true, "tanggal_update": true,
 	}
 
@@ -210,19 +228,31 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	// Execute the query with all parameters
 	rows, err := DB.Query(baseQuery, args...)
 	if err != nil {
+		log.Println("DB: Error fetching all products", err)
 		return nil, err
 	}
 	defer rows.Close()
+	log.Println("DB: Rows", rows)
 	for rows.Next() {
 		var p models.Product
+		var marketplaceJSON []byte
 		var usia string
+		log.Println("DB: Scanning rows")
 		if err := rows.Scan(
-			&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk,
+			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
+			log.Println("DB: Error scanning rows", err)
 			return nil, err
+		}
+
+		if marketplaceJSON != nil {
+			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+				log.Println("DB: Error unmarshalling marketplace JSON", err)
+				return nil, err
+			}
 		}
 
 		p.Usia = usia
@@ -243,10 +273,11 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 
 func FetchProductByArtikel(artikel string) (models.Product, error) {
 	var p models.Product
+	var marketplaceJSON []byte
 	var usia string
 	err := DB.QueryRow(`
 		SELECT 
-			no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, 
+			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, 
 			tanggal_produk, tanggal_terima, 
 			CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -261,7 +292,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 		FROM master_products 
 		WHERE artikel = $1 AND tanggal_hapus IS NULL
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -269,6 +300,13 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 
 	if err != nil {
 		return p, err
+	}
+
+	if marketplaceJSON != nil {
+		if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+			log.Println("DB: Error unmarshalling marketplace JSON", err)
+			return p, err
+		}
 	}
 
 	p.Usia = usia
@@ -286,10 +324,11 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 
 func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error) {
 	var p models.Product
+	var marketplaceJSON []byte
 	var usia string
 	err := DB.QueryRow(`
 		SELECT 
-			no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, 
+			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, 
 			tanggal_produk, tanggal_terima, 
 			CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -304,7 +343,7 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 		FROM master_products 
 		WHERE artikel = $1
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -312,6 +351,13 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 
 	if err != nil {
 		return p, err
+	}
+
+	if marketplaceJSON != nil {
+		if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+			log.Println("DB: Error unmarshalling marketplace JSON", err)
+			return p, err
+		}
 	}
 
 	p.Usia = usia
@@ -328,10 +374,15 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 }
 
 func InsertProduct(p *models.Product) error {
+	marketplaceJSON, err := json.Marshal(p.Marketplace)
+	if err != nil {
+		return err
+	}
+
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_products 
-		(artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		(artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		RETURNING no`)
 	if err != nil {
 		return err
@@ -340,6 +391,9 @@ func InsertProduct(p *models.Product) error {
 
 	return stmt.QueryRow(
 		p.Artikel,
+		p.Nama,
+		p.Deskripsi,
+		p.Rating,
 		p.Warna,
 		p.Size,
 		p.Grup,
@@ -349,6 +403,9 @@ func InsertProduct(p *models.Product) error {
 		p.Gender,
 		p.Tipe,
 		p.Harga,
+		p.HargaDiskon,
+		marketplaceJSON,
+		pq.Array(p.Gambar),
 		p.TanggalProduk,
 		p.TanggalTerima,
 		p.Status,
@@ -373,6 +430,8 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 
 	// Process string fields
 	stringFields := map[string]string{
+		"nama":          p.Nama,
+		"deskripsi":     p.Deskripsi,
 		"warna":         p.Warna,
 		"size":          p.Size,
 		"grup":          p.Grup,
@@ -400,6 +459,38 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		fieldsToUpdate++
 		query += fmt.Sprintf(" harga = $%d,", paramCount)
 		args = append(args, p.Harga)
+		paramCount++
+	}
+
+	if p.HargaDiskon != 0 {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" harga_diskon = $%d,", paramCount)
+		args = append(args, p.HargaDiskon)
+		paramCount++
+	}
+
+	if p.Rating != 0 {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" rating = $%d,", paramCount)
+		args = append(args, p.Rating)
+		paramCount++
+	}
+
+	if p.Marketplace != (models.MarketplaceInfo{}) {
+		marketplace, err := json.Marshal(p.Marketplace)
+		if err != nil {
+			return *p, err
+		}
+		fieldsToUpdate++
+		query += fmt.Sprintf(" marketplace = $%d,", paramCount)
+		args = append(args, marketplace)
+		paramCount++
+	}
+
+	if p.Gambar != nil {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" gambar = $%d,", paramCount)
+		args = append(args, pq.Array(p.Gambar))
 		paramCount++
 	}
 
@@ -542,7 +633,7 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, 
+		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, 
 		CASE 
 			WHEN tanggal_terima IS NOT NULL THEN 
 				CASE
@@ -563,6 +654,9 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR rating ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -572,6 +666,13 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR gambar ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -606,9 +707,9 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	orderBy := " ORDER BY "
 	// Map of valid column names to prevent SQL injection
 	validColumns := map[string]bool{
-		"no": true, "artikel": true, "warna": true, "size": true, "grup": true,
+		"no": true, "artikel": true, "nama": true, "deskripsi": true, "rating": true, "warna": true, "size": true, "grup": true,
 		"unit": true, "kat": true, "model": true, "gender": true, "tipe": true,
-		"harga": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
+		"harga": true, "harga_diskon": true, "marketplace": true, "gambar": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
 		"status": true, "supplier": true, "diupdate_oleh": true, "tanggal_update": true,
 		"tanggal_hapus": true,
 	}
@@ -638,14 +739,22 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	defer rows.Close()
 	for rows.Next() {
 		var p models.Product
+		var marketplaceJSON []byte
 		var usia string
 		if err := rows.Scan(
-			&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk,
+			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
 			return nil, err
+		}
+
+		if marketplaceJSON != nil {
+			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+				log.Println("DB: Error unmarshalling marketplace JSON", err)
+				return nil, err
+			}
 		}
 
 		p.Usia = usia
@@ -674,6 +783,9 @@ func CountDeletedProducts(queryStr string, filters map[string]string) (int, erro
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR rating ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -683,6 +795,13 @@ func CountDeletedProducts(queryStr string, filters map[string]string) (int, erro
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR gambar ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 

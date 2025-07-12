@@ -2,9 +2,13 @@
 -- This seeder will add 1000 sample products
 
 -- Create the table if it doesn't exist
+DROP TABLE IF EXISTS master_products;
 CREATE TABLE IF NOT EXISTS master_products (
     no SERIAL PRIMARY KEY,
     artikel TEXT NOT NULL,
+    nama TEXT,
+    deskripsi TEXT,
+    rating NUMERIC(2, 1),
     warna TEXT,
     size TEXT,
     grup TEXT,
@@ -14,6 +18,9 @@ CREATE TABLE IF NOT EXISTS master_products (
     gender TEXT,
     tipe TEXT,
     harga NUMERIC(15,2),
+    harga_diskon NUMERIC(15, 2),
+    marketplace JSONB,
+    gambar TEXT[],
     tanggal_produk DATE,
     tanggal_terima DATE,
     status TEXT,
@@ -72,6 +79,15 @@ DECLARE
     random_kat TEXT;
     random_gender TEXT;
     random_tipe TEXT;
+
+    nama_list TEXT[];
+    deskripsi_list TEXT[];
+    nama_count INTEGER;
+    deskripsi_count INTEGER;
+    random_nama TEXT;
+    random_deskripsi TEXT;
+
+    marketplace JSONB;
 BEGIN
     -- Get all color IDs from master_colors table
     SELECT ARRAY_AGG(id) INTO color_ids FROM master_colors WHERE tanggal_hapus IS NULL;
@@ -168,14 +184,36 @@ BEGIN
         random_kat := kat_values[floor(random()*kat_count + 1)];
         random_gender := gender_values[floor(random()*gender_count + 1)];
         random_tipe := tipe_values[floor(random()*tipe_count + 1)];
-        
+
+        -- Define nama and deskripsi list
+        nama_list := ARRAY['Jogging Shoes','Running Shoes','Walking Shoes','Casual Shoes','Formal Shoes','Sports Shoes','Sandals','Flip Flops'];
+        deskripsi_list := ARRAY['Lightweight and comfortable for everyday use','Perfect for running and jogging','Great for walking and casual wear','Stylish and elegant for formal occasions','Versatile for sports and outdoor activities','Comfortable for sports and fitness','Lightweight and comfortable for everyday use','Perfect for running and jogging'];
+
+        -- Select random nama and deskripsi
+        nama_count := array_length(nama_list, 1);
+        deskripsi_count := array_length(deskripsi_list, 1);
+        random_nama := nama_list[floor(random()*nama_count + 1)];
+        random_deskripsi := deskripsi_list[floor(random()*deskripsi_count + 1)];
+
+        -- Generate random marketplace values
+        marketplace := json_build_object(
+            'tokopedia', 'https://www.tokopedia.com/everysoft/product-id',
+            'shopee', 'https://shopee.co.id/everysoft/product-id',
+            'lazada', 'https://www.lazada.co.id/everysoft/product-id',
+            'tiktok', 'https://www.tiktok.com/everysoft/product-id',
+            'bukalapak', 'https://www.bukalapak.com/everysoft/product-id'
+        );
+
         -- Insert product with random values
         INSERT INTO master_products (
-            artikel, warna, size, grup, unit, kat, model, gender, 
-            tipe, harga, tanggal_produk, tanggal_terima, 
+            artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, 
+            tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, 
             status, supplier, diupdate_oleh, tanggal_update
         ) VALUES (
             'ART-' || LPAD(CAST(product_id AS TEXT), 6, '0'),
+            random_nama,
+            random_deskripsi,
+            floor(random()*(5-1+1) + 1)::numeric(2,1),
             color_list,
             size_list,
             random_grup,
@@ -185,6 +223,9 @@ BEGIN
             random_gender,
             random_tipe,
             floor(random()*(1000000-50000 + 1) + 50000)::numeric(15,2),
+            floor(random()*(500000-40000 + 1))::numeric(15,2),
+            marketplace,
+            ARRAY['/uploads/products/1.jpg', '/uploads/products/2.jpg', '/uploads/products/3.jpg'],
             CURRENT_DATE - (floor(random()*365)::int || ' days')::interval,
             CURRENT_DATE - (floor(random()*1000)::int || ' days')::interval,
             (ARRAY['Active', 'Inactive', 'Discontinued'])[floor(random()*3 + 1)],

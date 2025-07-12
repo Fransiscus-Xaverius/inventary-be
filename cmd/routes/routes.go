@@ -12,6 +12,12 @@ import (
 func SetupRoutes() *gin.Engine {
 	router := gin.Default()
 
+	// Set a higher limit for multipart forms (e.g., 8MB)
+	router.MaxMultipartMemory = 100 << 20 // 100MB
+
+	// Serve static files from the 'uploads' directory
+	router.Static("/uploads", "uploads")
+
 	// Better CORS middleware configuration
 	router.Use(CORSMiddleware())
 
@@ -143,6 +149,28 @@ func SetupRoutes() *gin.Engine {
 		api.GET("/category-colors", handlers.GetAllCategoryColorLabels)
 		api.GET("/category-colors/:column", handlers.GetCategoryColorLabelsByColumn)
 		api.GET("/category-colors/:column/:value", handlers.GetCategoryColorLabelByColumnAndValue)
+
+		/**
+		 * Banners routes
+		 * These routes require authentication for management, but public for fetching active banners
+		 */
+		banners := api.Group("/banners")
+		{
+			banners.GET("/active", handlers.GetActiveBanners) // Public endpoint for active banners
+		}
+
+		// Protected banner routes
+		bannersProtected := api.Group("/banners")
+		bannersProtected.Use(AuthMiddleware())
+		{
+			bannersProtected.GET("/", handlers.GetAllBanners)
+			bannersProtected.POST("/", handlers.CreateBanner)
+			bannersProtected.GET("/deleted", handlers.GetDeletedBanners)
+			bannersProtected.GET("/:id", handlers.GetBannerByID)
+			bannersProtected.PUT("/:id", handlers.UpdateBanner)
+			bannersProtected.DELETE("/:id", handlers.DeleteBanner)
+			bannersProtected.POST("/restore/:id", handlers.RestoreBanner)
+		}
 	}
 
 	return router
