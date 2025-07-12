@@ -117,7 +117,6 @@ func CreateMasterProductsTableIfNotExists() error {
 }
 
 func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]models.Product, error) {
-	log.Println("DB: Fetching all products")
 	products := []models.Product{}
 
 	// Start building the query with parameters
@@ -232,12 +231,10 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 		return nil, err
 	}
 	defer rows.Close()
-	log.Println("DB: Rows", rows)
 	for rows.Next() {
 		var p models.Product
 		var marketplaceJSON []byte
 		var usia string
-		log.Println("DB: Scanning rows")
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
 			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,

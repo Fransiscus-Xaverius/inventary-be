@@ -1,4 +1,4 @@
-package handlers
+package adminHandlers
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/app/models"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
@@ -45,7 +46,7 @@ func GetAllBanners(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -54,7 +55,7 @@ func GetAllBanners(c *gin.Context) {
 	if isActiveStr != "" {
 		b, err := strconv.ParseBool(isActiveStr)
 		if err != nil {
-			sendError(c, http.StatusBadRequest, "Invalid is_active parameter", nil)
+			handlers.SendError(c, http.StatusBadRequest, "Invalid is_active parameter", nil)
 			return
 		}
 		isActive = &b
@@ -66,7 +67,7 @@ func GetAllBanners(c *gin.Context) {
 	// Fetch total count with search term and is_active filter applied
 	totalCount, err := db.CountAllBanners(queryStr, isActive)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count banners", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count banners", nil)
 		return
 	}
 
@@ -76,12 +77,12 @@ func GetAllBanners(c *gin.Context) {
 	// Fetch paginated banners with search term and is_active filter applied
 	banners, err := db.FetchAllBanners(limit, offset, queryStr, isActive, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch banners", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch banners", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"banners":    banners,
 		"page":       page,
 		"total_page": totalPages,
@@ -96,21 +97,21 @@ func GetBannerByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	banner, err := db.FetchBannerByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Banner not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Banner not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch banner", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch banner", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, banner)
+	handlers.SendSuccess(c, http.StatusOK, banner)
 }
 
 // CreateBanner handles creating a new banner with image upload
@@ -119,28 +120,28 @@ func CreateBanner(c *gin.Context) {
 
 	// Bind non-file fields from form data
 	if err := c.ShouldBind(&banner); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Handle image upload
 	file, err := c.FormFile("image")
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Image file is required", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Image file is required", nil)
 		return
 	}
 
 	// Save the file to the uploads directory
 	filePath, err := SaveUploadedFile(c, file, "uploads/banners/")
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
 		return
 	}
 	banner.ImageUrl = filePath
 
 	// Validate required fields
 	if banner.Title == "" {
-		sendError(c, http.StatusBadRequest, "Banner title is required", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Banner title is required", nil)
 		return
 	}
 
@@ -151,11 +152,11 @@ func CreateBanner(c *gin.Context) {
 	// Insert to database
 	err = db.InsertBanner(&banner)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to create banner: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to create banner: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusCreated, banner)
+	handlers.SendSuccess(c, http.StatusCreated, banner)
 }
 
 // UpdateBanner handles updating an existing banner with optional image upload
@@ -163,7 +164,7 @@ func UpdateBanner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -171,9 +172,9 @@ func UpdateBanner(c *gin.Context) {
 	existingBanner, err := db.FetchBannerByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Banner not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Banner not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch existing banner", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch existing banner", nil)
 		}
 		return
 	}
@@ -181,7 +182,7 @@ func UpdateBanner(c *gin.Context) {
 	var bannerToUpdate models.Banner
 	// Bind non-file fields from form data
 	if err := c.ShouldBind(&bannerToUpdate); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
@@ -191,7 +192,7 @@ func UpdateBanner(c *gin.Context) {
 		// New image uploaded, save it
 		filePath, err := SaveUploadedFile(c, file, "uploads/banners/")
 		if err != nil {
-			sendError(c, http.StatusInternalServerError, "Failed to save new image: "+err.Error(), nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to save new image: "+err.Error(), nil)
 			return
 		}
 		bannerToUpdate.ImageUrl = filePath
@@ -203,11 +204,11 @@ func UpdateBanner(c *gin.Context) {
 	// Update the record
 	updatedBanner, err := db.UpdateBanner(id, &bannerToUpdate)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to update banner: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to update banner: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, updatedBanner)
+	handlers.SendSuccess(c, http.StatusOK, updatedBanner)
 }
 
 // DeleteBanner handles soft-deleting a banner
@@ -215,21 +216,21 @@ func DeleteBanner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteBanner(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Banner not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Banner not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to delete banner", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to delete banner", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Banner deleted successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Banner deleted successfully"})
 }
 
 // GetDeletedBanners retrieves all soft-deleted banners with pagination
@@ -245,7 +246,7 @@ func GetDeletedBanners(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -255,7 +256,7 @@ func GetDeletedBanners(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountDeletedBanners(queryStr)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count deleted banners", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count deleted banners", nil)
 		return
 	}
 
@@ -265,12 +266,12 @@ func GetDeletedBanners(c *gin.Context) {
 	// Fetch paginated deleted banners with search term applied
 	banners, err := db.FetchDeletedBanners(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted banners", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch deleted banners", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"banners":    banners,
 		"page":       page,
 		"total_page": totalPages,
@@ -285,21 +286,21 @@ func RestoreBanner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreBanner(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Banner not found or already active", nil)
+			handlers.SendError(c, http.StatusNotFound, "Banner not found or already active", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to restore banner: "+err.Error(), nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to restore banner: "+err.Error(), nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Banner restored successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Banner restored successfully"})
 }
 
 // GetActiveBanners retrieves all active banners, ordered by order_index
@@ -307,8 +308,8 @@ func GetActiveBanners(c *gin.Context) {
 	isActive := true
 	banners, err := db.FetchAllBanners(100, 0, "", &isActive, "order_index", "asc") // Set a reasonable limit, e.g., 100
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch active banners: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch active banners: "+err.Error(), nil)
 		return
 	}
-	sendSuccess(c, http.StatusOK, gin.H{"banners": banners})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"banners": banners})
 }

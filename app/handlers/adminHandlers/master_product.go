@@ -1,4 +1,4 @@
-package handlers
+package adminHandlers
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/app/helpers"
 	"github.com/everysoft/inventary-be/app/models"
 	"github.com/everysoft/inventary-be/app/validation/master_product"
@@ -19,7 +20,7 @@ func GetAllProducts(c *gin.Context) {
 	// Parse pagination parameters
 	limit, offset, page, err := helpers.ParsePaginationParams(c)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
@@ -34,7 +35,7 @@ func GetAllProducts(c *gin.Context) {
 	// Fetch total count with filters applied
 	totalCount, err := db.CountAllProducts(queryStr, filters)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count products", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count products", nil)
 		return
 	}
 
@@ -44,12 +45,12 @@ func GetAllProducts(c *gin.Context) {
 	// Fetch paginated products with filters applied
 	products, err := db.FetchAllProducts(limit, offset, queryStr, filters, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch products", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch products", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, PaginatedData{
+	handlers.SendSuccess(c, http.StatusOK, handlers.PaginatedData{
 		Items:      products,
 		Page:       page,
 		TotalPages: totalPages,
@@ -67,21 +68,21 @@ func GetProductByArtikel(c *gin.Context) {
 
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Product not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch product", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch product", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, product)
+	handlers.SendSuccess(c, http.StatusOK, product)
 }
 
 // CreateProduct handles creating a new product
 func CreateProduct(c *gin.Context) {
 	var requestBody map[string]interface{}
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
@@ -96,12 +97,12 @@ func CreateProduct(c *gin.Context) {
 		}
 		for key := range marketplace {
 			if !validKeys[key] {
-				sendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+				handlers.SendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
 				return
 			}
 		}
 	} else {
-		sendError(c, http.StatusBadRequest, "Marketplace object is required", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Marketplace object is required", nil)
 		return
 	}
 
@@ -109,13 +110,13 @@ func CreateProduct(c *gin.Context) {
 	var product models.Product
 	jsonBody, _ := json.Marshal(requestBody)
 	if err := json.Unmarshal(jsonBody, &product); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Perform validation using the validation package
 	if validationErr := master_product.ValidateCreate(&product); validationErr != nil {
-		sendError(c, http.StatusBadRequest, validationErr.Error, &validationErr.ErrorField)
+		handlers.SendError(c, http.StatusBadRequest, validationErr.Error, &validationErr.ErrorField)
 		return
 	}
 
@@ -129,14 +130,14 @@ func CreateProduct(c *gin.Context) {
 	err := db.InsertProduct(&product)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-			sendError(c, http.StatusBadRequest, "Product with this artikel already exists", nil)
+			handlers.SendError(c, http.StatusBadRequest, "Product with this artikel already exists", nil)
 			return
 		}
-		sendError(c, http.StatusInternalServerError, "Failed to create product: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to create product: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusCreated, product)
+	handlers.SendSuccess(c, http.StatusCreated, product)
 }
 
 // UpdateProduct handles updating an existing product
@@ -147,9 +148,9 @@ func UpdateProduct(c *gin.Context) {
 	existingProduct, err := db.FetchProductByArtikel(artikel)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Product not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch existing product", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch existing product", nil)
 		}
 		return
 	}
@@ -157,7 +158,7 @@ func UpdateProduct(c *gin.Context) {
 	// Create a map to hold the raw JSON request body
 	var requestBody map[string]interface{}
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
@@ -215,7 +216,7 @@ func UpdateProduct(c *gin.Context) {
 		}
 		for key := range marketplace {
 			if !validKeys[key] {
-				sendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+				handlers.SendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
 				return
 			}
 		}
@@ -223,7 +224,7 @@ func UpdateProduct(c *gin.Context) {
 		// Unmarshal to existing struct
 		marketplaceJSON, _ := json.Marshal(marketplace)
 		if err := json.Unmarshal(marketplaceJSON, &productToUpdate.Marketplace); err != nil {
-			sendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
+			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
 			return
 		}
 	}
@@ -254,7 +255,7 @@ func UpdateProduct(c *gin.Context) {
 
 	// Validate the updated product
 	if validationErr := master_product.ValidateUpdate(&productToUpdate); validationErr != nil {
-		sendError(c, http.StatusBadRequest, validationErr.Error, &validationErr.ErrorField)
+		handlers.SendError(c, http.StatusBadRequest, validationErr.Error, &validationErr.ErrorField)
 		return
 	}
 
@@ -267,11 +268,11 @@ func UpdateProduct(c *gin.Context) {
 	// Perform the update operation
 	updatedProduct, err := db.UpdateProduct(artikel, &productToUpdate)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to update product: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to update product: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, updatedProduct)
+	handlers.SendSuccess(c, http.StatusOK, updatedProduct)
 }
 
 // DeleteProduct handles soft-deleting a product
@@ -280,14 +281,14 @@ func DeleteProduct(c *gin.Context) {
 	err := db.DeleteProduct(artikel)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Product not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to delete product", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to delete product", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Product deleted successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Product deleted successfully"})
 }
 
 // GetDeletedProducts retrieves all soft-deleted products with pagination
@@ -295,7 +296,7 @@ func GetDeletedProducts(c *gin.Context) {
 	// Parse pagination parameters
 	limit, offset, page, err := helpers.ParsePaginationParams(c)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
@@ -310,7 +311,7 @@ func GetDeletedProducts(c *gin.Context) {
 	// Fetch total count with filters applied
 	totalCount, err := db.CountDeletedProducts(queryStr, filters)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count deleted products", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count deleted products", nil)
 		return
 	}
 
@@ -320,12 +321,12 @@ func GetDeletedProducts(c *gin.Context) {
 	// Fetch paginated deleted products with filters applied
 	products, err := db.FetchDeletedProducts(limit, offset, queryStr, filters, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted products", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch deleted products", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, PaginatedData{
+	handlers.SendSuccess(c, http.StatusOK, handlers.PaginatedData{
 		Items:      products,
 		Page:       page,
 		TotalPages: totalPages,
@@ -344,25 +345,25 @@ func RestoreProduct(c *gin.Context) {
 	product, err := db.FetchProductByArtikelIncludeDeleted(artikel)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Product not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch product", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch product", nil)
 		}
 		return
 	}
 
 	// Check if product is already active (not deleted)
 	if product.TanggalHapus == nil {
-		sendError(c, http.StatusBadRequest, "Product is already active and not deleted", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Product is already active and not deleted", nil)
 		return
 	}
 
 	// Restore the product
 	err = db.RestoreProduct(artikel)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to restore product: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to restore product: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Product restored successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Product restored successfully"})
 }

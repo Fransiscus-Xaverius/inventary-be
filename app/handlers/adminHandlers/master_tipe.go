@@ -1,4 +1,4 @@
-package handlers
+package adminHandlers
 
 import (
 	"math"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/app/models"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,7 @@ func GetAllTipes(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -34,7 +35,7 @@ func GetAllTipes(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountAllTipes(queryStr)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count tipe values", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count tipe values", nil)
 		return
 	}
 
@@ -44,12 +45,12 @@ func GetAllTipes(c *gin.Context) {
 	// Fetch paginated tipe values with search term applied
 	tipes, err := db.FetchAllTipes(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch tipe values", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch tipe values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"tipes":      tipes,
 		"page":       page,
 		"total_page": totalPages,
@@ -64,34 +65,34 @@ func GetTipeByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	tipe, err := db.FetchTipeByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Tipe value not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Tipe value not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch tipe value", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch tipe value", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, tipe)
+	handlers.SendSuccess(c, http.StatusOK, tipe)
 }
 
 // CreateTipe handles creating a new tipe value
 func CreateTipe(c *gin.Context) {
 	var tipe models.Tipe
 	if err := c.ShouldBindJSON(&tipe); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Validate required fields
 	if tipe.Value == "" {
-		sendError(c, http.StatusBadRequest, "Tipe value is required", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Tipe value is required", nil)
 		return
 	}
 
@@ -101,11 +102,11 @@ func CreateTipe(c *gin.Context) {
 	// Insert to database
 	err := db.InsertTipe(&tipe)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to create tipe value: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to create tipe value: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusCreated, tipe)
+	handlers.SendSuccess(c, http.StatusCreated, tipe)
 }
 
 // UpdateTipe handles updating an existing tipe value
@@ -113,7 +114,7 @@ func UpdateTipe(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -121,9 +122,9 @@ func UpdateTipe(c *gin.Context) {
 	_, err = db.FetchTipeByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Tipe value not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Tipe value not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch existing tipe value", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch existing tipe value", nil)
 		}
 		return
 	}
@@ -131,18 +132,18 @@ func UpdateTipe(c *gin.Context) {
 	// Parse request body
 	var tipeToUpdate models.Tipe
 	if err := c.ShouldBindJSON(&tipeToUpdate); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Update the record
 	updatedTipe, err := db.UpdateTipe(id, &tipeToUpdate)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to update tipe value: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to update tipe value: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, updatedTipe)
+	handlers.SendSuccess(c, http.StatusOK, updatedTipe)
 }
 
 // DeleteTipe handles soft-deleting a tipe value
@@ -150,17 +151,17 @@ func DeleteTipe(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteTipe(id)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to delete tipe value: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to delete tipe value: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Tipe value deleted successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Tipe value deleted successfully"})
 }
 
 // GetDeletedTipes retrieves all soft-deleted tipe values with pagination
@@ -176,7 +177,7 @@ func GetDeletedTipes(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -186,7 +187,7 @@ func GetDeletedTipes(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountDeletedTipes(queryStr)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count deleted tipe values", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count deleted tipe values", nil)
 		return
 	}
 
@@ -196,12 +197,12 @@ func GetDeletedTipes(c *gin.Context) {
 	// Fetch paginated deleted tipe values with search term applied
 	tipes, err := db.FetchDeletedTipes(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted tipe values", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch deleted tipe values", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"tipes":      tipes,
 		"page":       page,
 		"total_page": totalPages,
@@ -216,15 +217,15 @@ func RestoreTipe(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreTipe(id)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to restore tipe value: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to restore tipe value: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Tipe value restored successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Tipe value restored successfully"})
 }
