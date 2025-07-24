@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"log"
 	"reflect"
 	"strconv"
 
@@ -31,11 +32,13 @@ func GetValueFromID(idStr string, fetchFunc func(int) (ValueGetter, error)) stri
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
+		log.Printf("GetValueFromID: Invalid ID format for '%s': %v", idStr, err)
 		return idStr // Return original if not a valid integer
 	}
 
 	entity, err := fetchFunc(id)
 	if err != nil {
+		log.Printf("GetValueFromID: Failed to fetch entity for ID %d: %v", id, err)
 		return idStr // Return original if entity not found
 	}
 
