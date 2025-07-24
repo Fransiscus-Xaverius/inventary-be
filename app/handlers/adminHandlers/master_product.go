@@ -2,8 +2,12 @@ package adminHandlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"math"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +18,8 @@ import (
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
 )
+
+var maxImages = 10
 
 // GetAllProducts handles retrieving all products with pagination and filtering
 func GetAllProducts(c *gin.Context) {
@@ -80,42 +86,185 @@ func GetProductByArtikel(c *gin.Context) {
 
 // CreateProduct handles creating a new product
 func CreateProduct(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
+	log.Println("--------------------------------")
+	log.Println("CreateProduct: Starting product creation process.")
+
+	// Check if the request is multipart form data
+	contentType := c.GetHeader("Content-Type")
+	log.Printf("CreateProduct: Content-Type: %s", contentType)
+
+	if !strings.Contains(contentType, "multipart/form-data") {
+		log.Println("CreateProduct: Warning - Request is not multipart/form-data")
+		handlers.SendError(c, http.StatusBadRequest, "Request must be multipart/form-data for file uploads", nil)
 		return
 	}
+	log.Println("")
 
-	// Validate marketplace keys
-	if marketplace, ok := requestBody["marketplace"].(map[string]interface{}); ok {
-		validKeys := map[string]bool{
-			"tokopedia": true,
-			"shopee":    true,
-			"lazada":    true,
-			"tiktok":    true,
-			"bukalapak": true,
+	var req models.CreateProductRequest
+	if err := c.ShouldBind(&req); err != nil {
+		log.Printf("CreateProduct: Error binding form data: %v", err)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid form data: "+err.Error(), nil)
+		return
+	}
+	log.Printf("CreateProduct: Successfully bound request: %+v", req)
+	log.Println("")
+
+	// Unmarshal marketplace JSON string
+	var marketplaceInfo models.MarketplaceInfo
+	if req.Marketplace != "" {
+		if err := json.Unmarshal([]byte(req.Marketplace), &marketplaceInfo); err != nil {
+			log.Printf("CreateProduct: Error unmarshaling marketplace JSON: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Invalid marketplace data format", nil)
+			return
 		}
-		for key := range marketplace {
-			if !validKeys[key] {
-				handlers.SendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+		log.Printf("CreateProduct: Successfully unmarshaled marketplaceInfo: %+v", marketplaceInfo)
+	}
+	log.Println("")
+
+	// Parse date fields
+	var tanggalProduk time.Time
+	if req.TanggalProduk != "" {
+		t, err := time.Parse("2006-01-02T15:04:05Z", req.TanggalProduk)
+		if err != nil {
+			log.Println("Invalid date format for tanggal_produk:", err)
+			errorField := "tanggal_produk"
+			handlers.SendError(c, http.StatusBadRequest, "Invalid date format for tanggal_produk, use YYYY-MM-DD", &errorField)
+			return
+		}
+		tanggalProduk = t
+	}
+	log.Println("")
+
+	var tanggalTerima time.Time
+	if req.TanggalTerima != "" {
+		t, err := time.Parse("2006-01-02T15:04:05Z", req.TanggalTerima)
+		if err != nil {
+			log.Println("Invalid date format for tanggal_terima:", err)
+			errorField := "tanggal_terima"
+			handlers.SendError(c, http.StatusBadRequest, "Invalid date format for tanggal_terima, use YYYY-MM-DD", &errorField)
+			return
+		}
+		tanggalTerima = t
+	}
+	log.Println("--------------------------------")
+
+	// Handle image uploads
+	var imageUrls []string
+	log.Println("CreateProduct: Looking for indexed image files (gambar[0], gambar[1], etc.)")
+
+	// Get multipart form to access files with indexed keys
+	form, err := c.MultipartForm()
+	if err != nil {
+		log.Printf("CreateProduct: Error getting multipart form: %v", err)
+		handlers.SendError(c, http.StatusBadRequest, "Failed to parse multipart form: "+err.Error(), nil)
+		return
+	}
+	log.Println("")
+
+	log.Printf("CreateProduct: Form files: %+v", form.File)
+	log.Println("")
+
+	// Collect all gambar files (both indexed and array format)
+	var allFiles []*multipart.FileHeader
+
+	// Check for array format (gambar)
+	if files, ok := form.File["gambar"]; ok {
+		log.Printf("CreateProduct: Found %d files with key 'gambar'", len(files))
+		allFiles = append(allFiles, files...)
+	}
+	log.Println("")
+
+	// Check for indexed format (gambar[0], gambar[1], etc.)
+	for imageIndex := range maxImages { // Check up to maxImages files
+		key := fmt.Sprintf("gambar[%d]", imageIndex)
+		if files, ok := form.File[key]; ok {
+			log.Printf("CreateProduct: Found %d files with key '%s'", len(files), key)
+			allFiles = append(allFiles, files...)
+		}
+	}
+	log.Println("")
+
+	if len(allFiles) == 0 {
+		log.Println("CreateProduct: No files found with keys 'gambar' or 'gambar[x]'")
+	} else {
+		log.Printf("CreateProduct: Found total %d files", len(allFiles))
+
+		if len(allFiles) > maxImages {
+			log.Println("Maximum of " + strconv.Itoa(maxImages) + " images allowed")
+			handlers.SendError(c, http.StatusBadRequest, "Maximum of "+strconv.Itoa(maxImages)+" images allowed", nil)
+			return
+		}
+		log.Println("")
+
+		for i, file := range allFiles {
+			log.Printf("CreateProduct: Processing file %d: %s, Size: %d", i, file.Filename, file.Size)
+
+			// Check if file has content
+			if file.Size == 0 {
+				log.Printf("CreateProduct: File %d has zero size, skipping", i)
+				continue
+			}
+
+			// Handle image upload
+			filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", nil)
+			if err != nil {
+				log.Printf("CreateProduct: Failed to save image %d: %v", i, err)
+				handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
 				return
 			}
+			imageUrls = append(imageUrls, filePath)
+			log.Printf("CreateProduct: Successfully saved image %d to: %s", i, filePath)
 		}
-	} else {
-		handlers.SendError(c, http.StatusBadRequest, "Marketplace object is required", nil)
+	}
+	log.Println("")
+
+	// Check if we have any valid images
+	if len(imageUrls) == 0 {
+		log.Println("CreateProduct: No valid images were uploaded")
+		handlers.SendError(c, http.StatusBadRequest, "At least one valid image file is required", nil)
 		return
+	}
+	log.Println("")
+
+	log.Printf("CreateProduct: Successfully processed %d images: %v", len(imageUrls), imageUrls)
+	log.Println("--------------------------------")
+
+	product := models.Product{
+		Artikel:       req.Artikel,
+		Nama:          req.Nama,
+		Deskripsi:     req.Deskripsi,
+		Warna:         req.Warna,
+		Size:          req.Size,
+		Grup:          req.Grup,
+		Unit:          req.Unit,
+		Kat:           req.Kat,
+		Model:         req.Model,
+		Gender:        req.Gender,
+		Tipe:          req.Tipe,
+		Harga:         req.Harga,
+		HargaDiskon:   req.HargaDiskon,
+		Marketplace:   marketplaceInfo,
+		Gambar:        imageUrls,
+		TanggalProduk: tanggalProduk,
+		TanggalTerima: tanggalTerima,
+		Status:        req.Status,
+		Supplier:      req.Supplier,
+		DiupdateOleh:  req.DiupdateOleh,
 	}
 
-	// Manually create product from request body
-	var product models.Product
-	jsonBody, _ := json.Marshal(requestBody)
-	if err := json.Unmarshal(jsonBody, &product); err != nil {
-		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
-		return
+	log.Println("Product struct created:", product)
+
+	if req.Rating != nil {
+		product.Rating = *req.Rating
+	} else {
+		product.Rating = 0
 	}
+
+	log.Printf("CreateProduct: Product struct created: %+v", product)
 
 	// Perform validation using the validation package
 	if validationErr := master_product.ValidateCreate(&product); validationErr != nil {
+		log.Println("Validation error:", validationErr)
 		handlers.SendError(c, http.StatusBadRequest, validationErr.Error, &validationErr.ErrorField)
 		return
 	}
@@ -127,8 +276,10 @@ func CreateProduct(c *gin.Context) {
 	helpers.ConvertProductFields(&product, fieldsToConvert)
 
 	product.TanggalUpdate = time.Now()
-	err := db.InsertProduct(&product)
+	log.Println("CreateProduct: Attempting to insert product into DB.")
+	err = db.InsertProduct(&product)
 	if err != nil {
+		log.Printf("CreateProduct: Failed to insert product into DB: %v", err)
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 			handlers.SendError(c, http.StatusBadRequest, "Product with this artikel already exists", nil)
 			return
@@ -138,6 +289,7 @@ func CreateProduct(c *gin.Context) {
 	}
 
 	handlers.SendSuccess(c, http.StatusCreated, product)
+	log.Println("--------------------------------")
 }
 
 // UpdateProduct handles updating an existing product

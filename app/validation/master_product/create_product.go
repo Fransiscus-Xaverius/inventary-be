@@ -52,7 +52,7 @@ func DefaultCreateSchema() ValidationSchema {
 		TipeRequired:          true,
 		HargaRequired:         true,
 		MarketplaceRequired:   true,
-		GambarRequired:        true,
+		GambarRequired:        false,
 		TanggalProdukRequired: true,
 		TanggalTerimaRequired: true,
 		StatusRequired:        true,

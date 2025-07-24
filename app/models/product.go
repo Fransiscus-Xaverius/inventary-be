@@ -12,11 +12,35 @@ type ColorInfo struct {
 }
 
 type MarketplaceInfo struct {
-	Tokopedia string `json:"tokopedia"`
-	Shopee    string `json:"shopee"`
-	Lazada    string `json:"lazada"`
-	Tiktok    string `json:"tiktok"`
-	Bukalapak string `json:"bukalapak"`
+	Tokopedia *string `json:"tokopedia" optional:"true"`
+	Shopee    *string `json:"shopee" optional:"true"`
+	Lazada    *string `json:"lazada" optional:"true"`
+	Tiktok    *string `json:"tiktok" optional:"true"`
+	Bukalapak *string `json:"bukalapak" optional:"true"`
+}
+
+type CreateProductRequest struct {
+	Artikel     string   `form:"artikel" binding:"required"`
+	Nama        string   `form:"nama" binding:"required"`
+	Deskripsi   string   `form:"deskripsi" binding:"required"`
+	Warna       string   `form:"warna" binding:"required"` // Comma-separated IDs
+	Size        string   `form:"size" binding:"required"`
+	Grup        string   `form:"grup" binding:"required"`
+	Unit        string   `form:"unit" binding:"required"`
+	Kat         string   `form:"kat" binding:"required"`
+	Model       string   `form:"model" binding:"required"`
+	Gender      string   `form:"gender" binding:"required"`
+	Tipe        string   `form:"tipe" binding:"required"`
+	Harga       float64  `form:"harga" binding:"required,gt=0"`
+	HargaDiskon float64  `form:"harga_diskon"`
+	Rating      *float64 `form:"rating"`
+	Marketplace string   `form:"marketplace"` // JSON string
+	// Gambar        []*multipart.FileHeader `form:"gambar"`
+	TanggalProduk string `form:"tanggal_produk"`
+	TanggalTerima string `form:"tanggal_terima"`
+	Status        string `form:"status" binding:"required"`
+	Supplier      string `form:"supplier" binding:"required"`
+	DiupdateOleh  string `form:"diupdate_oleh" binding:"required"`
 }
 
 type Product struct {
