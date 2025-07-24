@@ -21,6 +21,9 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(rating AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -30,6 +33,12 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
