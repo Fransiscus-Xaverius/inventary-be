@@ -32,7 +32,7 @@ type CreateProductRequest struct {
 	Gender      string   `form:"gender" binding:"required"`
 	Tipe        string   `form:"tipe" binding:"required"`
 	Harga       float64  `form:"harga" binding:"required,gt=0"`
-	HargaDiskon float64  `form:"harga_diskon"`
+	HargaDiskon *float64 `form:"harga_diskon"`
 	Rating      *float64 `form:"rating"`
 	Marketplace string   `form:"marketplace"` // JSON string
 	// Gambar        []*multipart.FileHeader `form:"gambar"`
@@ -58,7 +58,7 @@ type Product struct {
 	Gender        string          `json:"gender"`           // GENDER
 	Tipe          string          `json:"tipe"`             // TIPE
 	Harga         float64         `json:"harga"`            // HARGA
-	HargaDiskon   float64         `json:"harga_diskon"`     // HARGA DISKON
+	HargaDiskon   *float64        `json:"harga_diskon"`     // HARGA DISKON
 	Marketplace   MarketplaceInfo `json:"marketplace"`      // MARKETPLACE
 	Gambar        []string        `json:"gambar"`           // GAMBAR
 	TanggalProduk time.Time       `json:"tanggal_produk"`   // TANGGAL PRODUK

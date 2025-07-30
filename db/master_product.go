@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/everysoft/inventary-be/app/models"
@@ -244,14 +245,25 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 		var p models.Product
 		var marketplaceJSON []byte
 		var usia string
+		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
 			log.Println("DB: Error scanning rows", err)
 			return nil, err
+		}
+
+		// Convert sql.NullFloat64 to *float64, handling NaN values
+		if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+			p.HargaDiskon = &hargaDiskonNull.Float64
+		} else {
+			p.HargaDiskon = nil
+			if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+				log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+			}
 		}
 
 		if marketplaceJSON != nil {
@@ -281,6 +293,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
 	var usia string
+	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
 		SELECT 
 			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, 
@@ -298,7 +311,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 		FROM master_products 
 		WHERE artikel = $1 AND tanggal_hapus IS NULL
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -306,6 +319,16 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 
 	if err != nil {
 		return p, err
+	}
+
+	// Convert sql.NullFloat64 to *float64, handling NaN values
+	if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+		p.HargaDiskon = &hargaDiskonNull.Float64
+	} else {
+		p.HargaDiskon = nil
+		if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+			log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+		}
 	}
 
 	if marketplaceJSON != nil {
@@ -332,6 +355,7 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 	var p models.Product
 	var marketplaceJSON []byte
 	var usia string
+	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
 		SELECT 
 			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, 
@@ -349,7 +373,7 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 		FROM master_products 
 		WHERE artikel = $1
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -357,6 +381,16 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 
 	if err != nil {
 		return p, err
+	}
+
+	// Convert sql.NullFloat64 to *float64, handling NaN values
+	if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+		p.HargaDiskon = &hargaDiskonNull.Float64
+	} else {
+		p.HargaDiskon = nil
+		if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+			log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+		}
 	}
 
 	if marketplaceJSON != nil {
@@ -409,7 +443,7 @@ func InsertProduct(p *models.Product) error {
 		p.Gender,
 		p.Tipe,
 		p.Harga,
-		p.HargaDiskon,
+		p.HargaDiskon, // This is now *float64, which PostgreSQL driver handles correctly for NULL
 		marketplaceJSON,
 		pq.Array(p.Gambar),
 		p.TanggalProduk,
@@ -468,7 +502,8 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		paramCount++
 	}
 
-	if p.HargaDiskon != 0 {
+	// Handle HargaDiskon properly as *float64
+	if p.HargaDiskon != nil {
 		fieldsToUpdate++
 		query += fmt.Sprintf(" harga_diskon = $%d,", paramCount)
 		args = append(args, p.HargaDiskon)
@@ -545,7 +580,7 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		return *p, errors.New("not_found")
 	}
 
-	// Fetch updated product
+	// Fetch and return the updated product
 	return FetchProductByArtikel(artikel)
 }
 
@@ -747,13 +782,24 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 		var p models.Product
 		var marketplaceJSON []byte
 		var usia string
+		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.HargaDiskon, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
 			return nil, err
+		}
+
+		// Convert sql.NullFloat64 to *float64, handling NaN values
+		if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+			p.HargaDiskon = &hargaDiskonNull.Float64
+		} else {
+			p.HargaDiskon = nil
+			if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+				log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+			}
 		}
 
 		if marketplaceJSON != nil {
