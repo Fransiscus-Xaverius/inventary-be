@@ -1,6 +1,7 @@
 package master_product
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -384,6 +385,49 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 		return &validation.ValidationError{
 			Error:      "Diupdate oleh is required",
 			ErrorField: "diupdate_oleh",
+		}
+	}
+
+	// Validate rating (required structure with valid values)
+	if p.Rating.Comfort < 0 || p.Rating.Comfort > 10 {
+		return &validation.ValidationError{
+			Error:      "Comfort rating must be between 0 and 10",
+			ErrorField: "rating.comfort",
+		}
+	}
+
+	if p.Rating.Style < 0 || p.Rating.Style > 10 {
+		return &validation.ValidationError{
+			Error:      "Style rating must be between 0 and 10",
+			ErrorField: "rating.style",
+		}
+	}
+
+	if p.Rating.Support < 0 || p.Rating.Support > 10 {
+		return &validation.ValidationError{
+			Error:      "Support rating must be between 0 and 10",
+			ErrorField: "rating.support",
+		}
+	}
+
+	if len(p.Rating.Purpose) == 0 {
+		return &validation.ValidationError{
+			Error:      "Purpose array cannot be empty",
+			ErrorField: "rating.purpose",
+		}
+	}
+
+	// Validate purpose array - check for empty strings
+	for i, purpose := range p.Rating.Purpose {
+		if strings.TrimSpace(purpose) == "" && len(p.Rating.Purpose) == 1 {
+			// Allow single empty string as default
+			continue
+		}
+		if strings.TrimSpace(purpose) == "" {
+			return &validation.ValidationError{
+				Error:      fmt.Sprintf("Purpose at index %d cannot be empty", i),
+				ErrorField: "rating.purpose",
+			}
 		}
 	}
 

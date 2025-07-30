@@ -82,7 +82,7 @@ func CreateMasterProductsTableIfNotExists() error {
 			artikel TEXT NOT NULL,
 			nama TEXT,
 			deskripsi TEXT,
-			rating NUMERIC(2,1),
+			rating JSONB,
 			warna TEXT,
 			size TEXT,
 			grup TEXT,
@@ -244,10 +244,11 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	for rows.Next() {
 		var p models.Product
 		var marketplaceJSON []byte
+		var ratingJSON []byte
 		var usia string
 		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
-			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
+			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
 			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
@@ -273,6 +274,22 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 			}
 		}
 
+		// Handle rating JSONB
+		if ratingJSON != nil {
+			if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+				log.Println("DB: Error unmarshalling rating JSON", err)
+				return nil, err
+			}
+		} else {
+			// Set default rating if null
+			p.Rating = models.ProductRating{
+				Comfort: 0,
+				Style:   0,
+				Support: 0,
+				Purpose: []string{""},
+			}
+		}
+
 		p.Usia = usia
 
 		// Fetch color information
@@ -292,6 +309,7 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 func FetchProductByArtikel(artikel string) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
+	var ratingJSON []byte
 	var usia string
 	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
@@ -311,7 +329,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 		FROM master_products 
 		WHERE artikel = $1 AND tanggal_hapus IS NULL
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -335,6 +353,22 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 		if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
 			log.Println("DB: Error unmarshalling marketplace JSON", err)
 			return p, err
+		}
+	}
+
+	// Handle rating JSONB
+	if ratingJSON != nil {
+		if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+			log.Println("DB: Error unmarshalling rating JSON", err)
+			return p, err
+		}
+	} else {
+		// Set default rating if null
+		p.Rating = models.ProductRating{
+			Comfort: 0,
+			Style:   0,
+			Support: 0,
+			Purpose: []string{""},
 		}
 	}
 
@@ -354,6 +388,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
+	var ratingJSON []byte
 	var usia string
 	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
@@ -373,7 +408,7 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 		FROM master_products 
 		WHERE artikel = $1
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -397,6 +432,22 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 		if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
 			log.Println("DB: Error unmarshalling marketplace JSON", err)
 			return p, err
+		}
+	}
+
+	// Handle rating JSONB
+	if ratingJSON != nil {
+		if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+			log.Println("DB: Error unmarshalling rating JSON", err)
+			return p, err
+		}
+	} else {
+		// Set default rating if null
+		p.Rating = models.ProductRating{
+			Comfort: 0,
+			Style:   0,
+			Support: 0,
+			Purpose: []string{""},
 		}
 	}
 
@@ -419,6 +470,11 @@ func InsertProduct(p *models.Product) error {
 		return err
 	}
 
+	ratingJSON, err := json.Marshal(p.Rating)
+	if err != nil {
+		return err
+	}
+
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_products 
 		(artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
@@ -433,7 +489,7 @@ func InsertProduct(p *models.Product) error {
 		p.Artikel,
 		p.Nama,
 		p.Deskripsi,
-		p.Rating,
+		ratingJSON,
 		p.Warna,
 		p.Size,
 		p.Grup,
@@ -510,11 +566,24 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		paramCount++
 	}
 
-	if p.Rating != 0 {
+	// Always update rating if it has proper structure (not default empty state)
+	// We consider it valid for update if it has proper keys, regardless of values
+	hasValidRating := len(p.Rating.Purpose) > 0
+	log.Printf("DB UpdateProduct: Rating check - hasValidRating: %v, Purpose length: %d, Rating: %+v", hasValidRating, len(p.Rating.Purpose), p.Rating)
+
+	if hasValidRating {
+		ratingJSON, err := json.Marshal(p.Rating)
+		if err != nil {
+			log.Printf("DB UpdateProduct: Failed to marshal rating: %v", err)
+			return *p, err
+		}
 		fieldsToUpdate++
 		query += fmt.Sprintf(" rating = $%d,", paramCount)
-		args = append(args, p.Rating)
+		args = append(args, ratingJSON)
 		paramCount++
+		log.Printf("DB UpdateProduct: Added rating to update query. JSON: %s", string(ratingJSON))
+	} else {
+		log.Printf("DB UpdateProduct: Skipping rating update - considered empty/invalid")
 	}
 
 	if p.Marketplace != (models.MarketplaceInfo{}) {
@@ -781,10 +850,11 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	for rows.Next() {
 		var p models.Product
 		var marketplaceJSON []byte
+		var ratingJSON []byte
 		var usia string
 		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
-			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &p.Rating, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
+			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
 			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
@@ -806,6 +876,22 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
 				log.Println("DB: Error unmarshalling marketplace JSON", err)
 				return nil, err
+			}
+		}
+
+		// Handle rating JSONB
+		if ratingJSON != nil {
+			if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+				log.Println("DB: Error unmarshalling rating JSON", err)
+				return nil, err
+			}
+		} else {
+			// Set default rating if null
+			p.Rating = models.ProductRating{
+				Comfort: 0,
+				Style:   0,
+				Support: 0,
+				Purpose: []string{""},
 			}
 		}
 

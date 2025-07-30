@@ -270,10 +270,23 @@ func CreateProduct(c *gin.Context) {
 
 	log.Println("Product struct created:", product)
 
-	if req.Rating != nil {
-		product.Rating = *req.Rating
+	// Handle rating JSON
+	if req.Rating != "" {
+		var rating models.ProductRating
+		if err := json.Unmarshal([]byte(req.Rating), &rating); err != nil {
+			log.Printf("CreateProduct: Failed to unmarshal rating JSON: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Invalid rating JSON format: "+err.Error(), nil)
+			return
+		}
+		product.Rating = rating
 	} else {
-		product.Rating = 0
+		// Set default rating
+		product.Rating = models.ProductRating{
+			Comfort: 0,
+			Style:   0,
+			Support: 0,
+			Purpose: []string{""},
+		}
 	}
 
 	log.Printf("CreateProduct: Product struct created: %+v", product)
@@ -498,10 +511,50 @@ func UpdateProduct(c *gin.Context) {
 		productToUpdate.HargaDiskon = &hargaDiskon
 	}
 
-	// Handle rating field
-	if rating, ok := requestBody["rating"].(float64); ok {
-		log.Printf("UpdateProduct: Updating rating from %f to %f", productToUpdate.Rating, rating)
-		productToUpdate.Rating = rating
+	// Handle rating field (can come as either JSON object or JSON string)
+	if ratingRaw, exists := requestBody["rating"]; exists {
+		var rating map[string]interface{}
+		// var err error
+
+		// Try to handle as map[string]interface{} first (parsed JSON object)
+		if ratingMap, ok := ratingRaw.(map[string]interface{}); ok {
+			rating = ratingMap
+			log.Printf("UpdateProduct: Rating received as parsed JSON object: %+v", rating)
+		} else if ratingStr, ok := ratingRaw.(string); ok {
+			// Handle as JSON string (needs parsing)
+			log.Printf("UpdateProduct: Rating received as JSON string: %s", ratingStr)
+			if err := json.Unmarshal([]byte(ratingStr), &rating); err != nil {
+				log.Printf("UpdateProduct: Failed to parse rating JSON string: %v", err)
+				handlers.SendError(c, http.StatusBadRequest, "Invalid rating JSON format: "+err.Error(), nil)
+				return
+			}
+			log.Printf("UpdateProduct: Successfully parsed rating JSON string: %+v", rating)
+		} else {
+			log.Printf("UpdateProduct: Rating field has unsupported type: %T, value: %+v", ratingRaw, ratingRaw)
+			handlers.SendError(c, http.StatusBadRequest, "Rating field must be a JSON object or JSON string", nil)
+			return
+		}
+
+		// Validate required keys
+		requiredKeys := []string{"comfort", "style", "support", "purpose"}
+		for _, key := range requiredKeys {
+			if _, exists := rating[key]; !exists {
+				log.Printf("UpdateProduct: Missing required rating key: %s", key)
+				handlers.SendError(c, http.StatusBadRequest, "Missing required rating key: "+key, nil)
+				return
+			}
+		}
+
+		// Unmarshal to ProductRating struct
+		ratingJSON, _ := json.Marshal(rating)
+		var newRating models.ProductRating
+		if err := json.Unmarshal(ratingJSON, &newRating); err != nil {
+			log.Printf("UpdateProduct: Failed to unmarshal rating data: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal rating data: "+err.Error(), nil)
+			return
+		}
+		log.Printf("UpdateProduct: Successfully updated rating: %+v", newRating)
+		productToUpdate.Rating = newRating
 	}
 
 	// Handle marketplace field

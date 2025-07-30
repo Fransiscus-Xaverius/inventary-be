@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS master_products (
     artikel TEXT NOT NULL,
     nama TEXT,
     deskripsi TEXT,
-    rating NUMERIC(2, 1),
+    rating JSONB,
     warna TEXT,
     size TEXT,
     grup TEXT,
@@ -213,7 +213,22 @@ BEGIN
             'ART-' || LPAD(CAST(product_id AS TEXT), 6, '0'),
             random_nama,
             random_deskripsi,
-            floor(random()*(5-1+1) + 1)::numeric(2,1),
+            jsonb_build_object(
+                'comfort', floor(random()*11)::int,
+                'style', floor(random()*11)::int,
+                'support', floor(random()*11)::int,
+                'purpose', CASE 
+                    -- 70% chance of single purpose
+                    WHEN random() < 0.7 THEN jsonb_build_array(
+                        (ARRAY['casual', 'formal', 'sport', 'outdoor', 'work', 'party', 'daily', 'running', 'walking', 'hiking', 'business', 'travel', 'gym', 'beach', 'winter'])[floor(random()*15 + 1)]
+                    )
+                    -- 30% chance of multiple purposes (2-3 purposes)
+                    ELSE jsonb_build_array(
+                        (ARRAY['casual', 'formal', 'sport', 'outdoor', 'work', 'party', 'daily', 'running', 'walking', 'hiking', 'business', 'travel', 'gym', 'beach', 'winter'])[floor(random()*15 + 1)],
+                        (ARRAY['casual', 'formal', 'sport', 'outdoor', 'work', 'party', 'daily', 'running', 'walking', 'hiking', 'business', 'travel', 'gym', 'beach', 'winter'])[floor(random()*15 + 1)]
+                    )
+                END
+            ),
             color_list,
             size_list,
             random_grup,

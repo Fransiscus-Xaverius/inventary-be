@@ -4,7 +4,7 @@ CREATE TABLE
         artikel TEXT NOT NULL,
         nama TEXT,
         deskripsi TEXT,
-        rating NUMERIC(2, 1),
+        rating JSONB,
         warna TEXT,
         size TEXT,
         grup TEXT,

@@ -11,6 +11,14 @@ type ColorInfo struct {
 	Hex  string `json:"hex"`
 }
 
+// ProductRating represents admin-set specifications/stats for a product
+type ProductRating struct {
+	Comfort int      `json:"comfort" validate:"min=0,max=10"`
+	Style   int      `json:"style" validate:"min=0,max=10"`
+	Support int      `json:"support" validate:"min=0,max=10"`
+	Purpose []string `json:"purpose" validate:"min=1"`
+}
+
 type MarketplaceInfo struct {
 	Tokopedia *string `json:"tokopedia" optional:"true"`
 	Shopee    *string `json:"shopee" optional:"true"`
@@ -33,7 +41,7 @@ type CreateProductRequest struct {
 	Tipe        string   `form:"tipe" binding:"required"`
 	Harga       float64  `form:"harga" binding:"required,gt=0"`
 	HargaDiskon *float64 `form:"harga_diskon"`
-	Rating      *float64 `form:"rating"`
+	Rating      string   `form:"rating"`      // JSON string
 	Marketplace string   `form:"marketplace"` // JSON string
 	// Gambar        []*multipart.FileHeader `form:"gambar"`
 	TanggalProduk string `form:"tanggal_produk"`
@@ -47,7 +55,7 @@ type Product struct {
 	Artikel       string          `json:"artikel"`          // ARTIKEL = PRODUCT_NAME
 	Nama          string          `json:"nama"`             // NAMA
 	Deskripsi     string          `json:"deskripsi"`        // DESKRIPSI
-	Rating        float64         `json:"rating"`           // RATING
+	Rating        ProductRating   `json:"rating"`           // RATING - Admin-set specifications
 	No            string          `json:"no"`               // NO
 	Warna         string          `json:"warna"`            // WARNA - Now stores comma-separated IDs
 	Size          string          `json:"size"`             // SIZE
