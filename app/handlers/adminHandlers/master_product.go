@@ -7,6 +7,7 @@ import (
 	"math"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,21 @@ import (
 )
 
 var maxImages = 10
+
+// deleteImageFiles removes image files from the filesystem
+func deleteImageFiles(imageUrls []string) {
+	for _, imageUrl := range imageUrls {
+		if imageUrl != "" {
+			// Remove the leading "/" from the URL to get the file path
+			filePath := strings.TrimPrefix(imageUrl, "/")
+			if err := os.Remove(filePath); err != nil {
+				log.Printf("Warning: Failed to delete image file %s: %v", filePath, err)
+			} else {
+				log.Printf("Successfully deleted old image file: %s", filePath)
+			}
+		}
+	}
+}
 
 // GetAllProducts handles retrieving all products with pagination and filtering
 func GetAllProducts(c *gin.Context) {
@@ -242,7 +258,7 @@ func CreateProduct(c *gin.Context) {
 		Gender:        req.Gender,
 		Tipe:          req.Tipe,
 		Harga:         req.Harga,
-		HargaDiskon:   req.HargaDiskon,
+		HargaDiskon:   req.HargaDiskon, // This is already *float64
 		Marketplace:   marketplaceInfo,
 		Gambar:        imageUrls,
 		TanggalProduk: tanggalProduk,
@@ -294,28 +310,152 @@ func CreateProduct(c *gin.Context) {
 
 // UpdateProduct handles updating an existing product
 func UpdateProduct(c *gin.Context) {
+	log.Println("--------------------------------")
+	log.Println("UpdateProduct: Starting product update process.")
+
 	artikel := c.Param("artikel")
+	log.Printf("UpdateProduct: Artikel parameter: %s", artikel)
 
 	// Fetch the existing product first to avoid overwriting with zero values
 	existingProduct, err := db.FetchProductByArtikel(artikel)
 	if err != nil {
 		if err.Error() == "not_found" {
+			log.Printf("UpdateProduct: Product with artikel %s not found", artikel)
 			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
 		} else {
+			log.Printf("UpdateProduct: Error fetching existing product: %v", err)
 			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch existing product", nil)
 		}
 		return
 	}
+	log.Printf("UpdateProduct: Successfully fetched existing product: %+v", existingProduct)
+	log.Println("")
 
-	// Create a map to hold the raw JSON request body
+	// Check content type to determine request format
+	contentType := c.GetHeader("Content-Type")
+	log.Printf("UpdateProduct: Content-Type: %s", contentType)
+	isMultipart := strings.Contains(contentType, "multipart/form-data")
+	log.Printf("UpdateProduct: Is multipart request: %t", isMultipart)
+	log.Println("")
+
+	// Variables for request processing
 	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
-		return
+	var imageUrls []string
+	var imageProcessed bool
+
+	if isMultipart {
+		log.Println("UpdateProduct: Processing multipart/form-data request")
+
+		// Get multipart form to access files and form data
+		form, err := c.MultipartForm()
+		if err != nil {
+			log.Printf("UpdateProduct: Error getting multipart form: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Failed to parse multipart form: "+err.Error(), nil)
+			return
+		}
+		log.Printf("UpdateProduct: Form files: %+v", form.File)
+		log.Printf("UpdateProduct: Form values: %+v", form.Value)
+		log.Println("")
+
+		// Convert form values to requestBody map
+		requestBody = make(map[string]interface{})
+		for key, values := range form.Value {
+			if len(values) > 0 {
+				requestBody[key] = values[0] // Take first value
+			}
+		}
+		log.Printf("UpdateProduct: Converted form values to requestBody: %+v", requestBody)
+		log.Println("")
+
+		// Handle marketplace JSON parsing for multipart
+		if marketplaceStr, ok := requestBody["marketplace"].(string); ok && marketplaceStr != "" {
+			var marketplaceInfo map[string]interface{}
+			if err := json.Unmarshal([]byte(marketplaceStr), &marketplaceInfo); err != nil {
+				log.Printf("UpdateProduct: Error unmarshaling marketplace JSON: %v", err)
+				handlers.SendError(c, http.StatusBadRequest, "Invalid marketplace data format", nil)
+				return
+			}
+			requestBody["marketplace"] = marketplaceInfo
+			log.Printf("UpdateProduct: Successfully unmarshaled marketplace: %+v", marketplaceInfo)
+		}
+		log.Println("")
+
+		// Handle image uploads
+		log.Println("UpdateProduct: Looking for image files (gambar[0], gambar[1], etc.)")
+
+		// Collect all gambar files (both indexed and array format)
+		var allFiles []*multipart.FileHeader
+
+		// Check for array format (gambar)
+		if files, ok := form.File["gambar"]; ok {
+			log.Printf("UpdateProduct: Found %d files with key 'gambar'", len(files))
+			allFiles = append(allFiles, files...)
+		}
+
+		// Check for indexed format (gambar[0], gambar[1], etc.)
+		for imageIndex := range maxImages { // Check up to maxImages files
+			key := fmt.Sprintf("gambar[%d]", imageIndex)
+			if files, ok := form.File[key]; ok {
+				log.Printf("UpdateProduct: Found %d files with key '%s'", len(files), key)
+				allFiles = append(allFiles, files...)
+			}
+		}
+		log.Println("")
+
+		if len(allFiles) == 0 {
+			log.Println("UpdateProduct: No image files found - keeping existing images")
+		} else {
+			log.Printf("UpdateProduct: Found total %d files", len(allFiles))
+
+			if len(allFiles) > maxImages {
+				log.Println("UpdateProduct: Maximum of " + strconv.Itoa(maxImages) + " images allowed")
+				handlers.SendError(c, http.StatusBadRequest, "Maximum of "+strconv.Itoa(maxImages)+" images allowed", nil)
+				return
+			}
+
+			for i, file := range allFiles {
+				log.Printf("UpdateProduct: Processing file %d: %s, Size: %d", i, file.Filename, file.Size)
+
+				// Check if file has content
+				if file.Size == 0 {
+					log.Printf("UpdateProduct: File %d has zero size, skipping", i)
+					continue
+				}
+
+				// Handle image upload
+				filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", nil)
+				if err != nil {
+					log.Printf("UpdateProduct: Failed to save image %d: %v", i, err)
+					handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
+					return
+				}
+				imageUrls = append(imageUrls, filePath)
+				log.Printf("UpdateProduct: Successfully saved image %d to: %s", i, filePath)
+			}
+
+			if len(imageUrls) > 0 {
+				imageProcessed = true
+				log.Printf("UpdateProduct: Successfully processed %d images: %v", len(imageUrls), imageUrls)
+			}
+		}
+		log.Println("")
+
+	} else {
+		log.Println("UpdateProduct: Processing JSON request")
+
+		// Handle JSON request (existing logic)
+		if err := c.ShouldBindJSON(&requestBody); err != nil {
+			log.Printf("UpdateProduct: Error binding JSON: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
+			return
+		}
+		log.Printf("UpdateProduct: Successfully bound JSON request: %+v", requestBody)
+		log.Println("")
 	}
 
 	// Create a product struct with the existing data
 	productToUpdate := existingProduct
+	log.Println("UpdateProduct: Created productToUpdate with existing data")
 
 	// Define string fields mapping and update in one loop
 	stringFields := map[string]*string{
@@ -337,27 +477,37 @@ func UpdateProduct(c *gin.Context) {
 	// Process all string fields
 	for field, target := range stringFields {
 		if value, ok := requestBody[field].(string); ok {
+			log.Printf("UpdateProduct: Updating field %s from '%s' to '%s'", field, *target, value)
 			*target = value
 		}
 	}
 
 	// Handle numeric field
 	if harga, ok := requestBody["harga"].(float64); ok {
+		log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, harga)
 		productToUpdate.Harga = harga
 	}
 
-	// Handle numeric field
+	// Handle harga_diskon field properly as *float64
 	if hargaDiskon, ok := requestBody["harga_diskon"].(float64); ok {
-		productToUpdate.HargaDiskon = hargaDiskon
+		oldValue := "nil"
+		if productToUpdate.HargaDiskon != nil {
+			oldValue = fmt.Sprintf("%f", *productToUpdate.HargaDiskon)
+		}
+		log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, hargaDiskon)
+		productToUpdate.HargaDiskon = &hargaDiskon
 	}
 
 	// Handle rating field
 	if rating, ok := requestBody["rating"].(float64); ok {
+		log.Printf("UpdateProduct: Updating rating from %f to %f", productToUpdate.Rating, rating)
 		productToUpdate.Rating = rating
 	}
 
 	// Handle marketplace field
 	if marketplace, ok := requestBody["marketplace"].(map[string]interface{}); ok {
+		log.Printf("UpdateProduct: Processing marketplace update: %+v", marketplace)
+
 		// Validate keys
 		validKeys := map[string]bool{
 			"tokopedia": true,
@@ -368,6 +518,7 @@ func UpdateProduct(c *gin.Context) {
 		}
 		for key := range marketplace {
 			if !validKeys[key] {
+				log.Printf("UpdateProduct: Invalid marketplace key: %s", key)
 				handlers.SendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
 				return
 			}
@@ -376,15 +527,62 @@ func UpdateProduct(c *gin.Context) {
 		// Unmarshal to existing struct
 		marketplaceJSON, _ := json.Marshal(marketplace)
 		if err := json.Unmarshal(marketplaceJSON, &productToUpdate.Marketplace); err != nil {
+			log.Printf("UpdateProduct: Failed to unmarshal marketplace data: %v", err)
 			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
 			return
 		}
+		log.Printf("UpdateProduct: Successfully updated marketplace: %+v", productToUpdate.Marketplace)
 	}
 
-	// Handle gambar field
-	if gambar, ok := requestBody["gambar"].([]string); ok {
-		productToUpdate.Gambar = gambar
+	// Handle image updates
+	if imageProcessed {
+		log.Printf("UpdateProduct: Replacing images with newly uploaded ones")
+		log.Printf("UpdateProduct: Old images: %v", existingProduct.Gambar)
+		log.Printf("UpdateProduct: New images: %v", imageUrls)
+
+		// Delete old image files
+		if len(existingProduct.Gambar) > 0 {
+			log.Println("UpdateProduct: Deleting old image files")
+			deleteImageFiles(existingProduct.Gambar)
+		}
+
+		// Set new images
+		productToUpdate.Gambar = imageUrls
+		log.Println("UpdateProduct: Successfully replaced images with uploaded files")
+	} else if gambar, ok := requestBody["gambar"].([]interface{}); ok {
+		// Handle gambar field as array of strings from JSON
+		var gambarStrings []string
+		for _, img := range gambar {
+			if imgStr, ok := img.(string); ok {
+				gambarStrings = append(gambarStrings, imgStr)
+			}
+		}
+		if len(gambarStrings) > 0 {
+			log.Printf("UpdateProduct: Updating gambar URLs from %v to %v", productToUpdate.Gambar, gambarStrings)
+
+			// Delete old image files
+			if len(existingProduct.Gambar) > 0 {
+				log.Println("UpdateProduct: Deleting old image files")
+				deleteImageFiles(existingProduct.Gambar)
+			}
+
+			productToUpdate.Gambar = gambarStrings
+		}
+	} else if gambarSlice, ok := requestBody["gambar"].([]string); ok {
+		// Handle gambar field as slice of strings from JSON
+		log.Printf("UpdateProduct: Updating gambar URLs from %v to %v", productToUpdate.Gambar, gambarSlice)
+
+		// Delete old image files
+		if len(existingProduct.Gambar) > 0 {
+			log.Println("UpdateProduct: Deleting old image files")
+			deleteImageFiles(existingProduct.Gambar)
+		}
+
+		productToUpdate.Gambar = gambarSlice
+	} else {
+		log.Println("UpdateProduct: No image updates - keeping existing images")
 	}
+	log.Println("")
 
 	// Define date fields mapping and update in one loop
 	dateFields := map[string]*time.Time{
@@ -395,36 +593,58 @@ func UpdateProduct(c *gin.Context) {
 	// Process all date fields
 	for field, target := range dateFields {
 		if dateStr, ok := requestBody[field].(string); ok && dateStr != "" {
-			date, err := time.Parse("2006-01-02", dateStr)
-			if err == nil {
-				*target = date
+			// Try parsing different date formats
+			var date time.Time
+			var err error
+
+			// Try ISO format first (from multipart forms)
+			if date, err = time.Parse("2006-01-02T15:04:05Z", dateStr); err != nil {
+				// Try simple date format (from JSON)
+				if date, err = time.Parse("2006-01-02", dateStr); err != nil {
+					log.Printf("UpdateProduct: Failed to parse date for %s: %s, error: %v", field, dateStr, err)
+					continue
+				}
 			}
+
+			log.Printf("UpdateProduct: Updating %s from %v to %v", field, *target, date)
+			*target = date
 		}
 	}
 
 	// Update the tanggal_update field to now
 	productToUpdate.TanggalUpdate = time.Now()
+	log.Printf("UpdateProduct: Updated tanggal_update to: %v", productToUpdate.TanggalUpdate)
+	log.Println("")
 
 	// Validate the updated product
+	log.Println("UpdateProduct: Validating updated product")
 	if validationErr := master_product.ValidateUpdate(&productToUpdate); validationErr != nil {
+		log.Printf("UpdateProduct: Validation error: %s", validationErr.Error)
 		handlers.SendError(c, http.StatusBadRequest, validationErr.Error, &validationErr.ErrorField)
 		return
 	}
+	log.Println("UpdateProduct: Product validation successful")
 
 	// Define fields that need to be converted from IDs to values
 	fieldsToConvert := []string{"Grup", "Unit", "Kat", "Gender", "Tipe"}
 
 	// Convert all IDs to values in one call
+	log.Println("UpdateProduct: Converting product fields from IDs to values")
 	helpers.ConvertProductFields(&productToUpdate, fieldsToConvert)
+	log.Printf("UpdateProduct: Product after field conversion: %+v", productToUpdate)
 
 	// Perform the update operation
+	log.Println("UpdateProduct: Attempting to update product in database")
 	updatedProduct, err := db.UpdateProduct(artikel, &productToUpdate)
 	if err != nil {
+		log.Printf("UpdateProduct: Failed to update product in database: %v", err)
 		handlers.SendError(c, http.StatusInternalServerError, "Failed to update product: "+err.Error(), nil)
 		return
 	}
 
+	log.Printf("UpdateProduct: Successfully updated product: %+v", updatedProduct)
 	handlers.SendSuccess(c, http.StatusOK, updatedProduct)
+	log.Println("--------------------------------")
 }
 
 // DeleteProduct handles soft-deleting a product
