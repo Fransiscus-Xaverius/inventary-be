@@ -281,19 +281,19 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 			}
 
 			// Type validation
-			validTypes := map[string]bool{
-				"google-map":  true,
-				"apple-maps":  true,
-				"waze":        true,
-				"coordinates": true,
-				"address":     true,
-			}
-			if !validTypes[store.Type] {
-				return &validation.ValidationError{
-					Error:      fmt.Sprintf("Invalid store type '%s' at index %d. Must be one of: google-map, apple-maps, waze, coordinates, address", store.Type, i),
-					ErrorField: "offline",
-				}
-			}
+			// validTypes := map[string]bool{
+			// 	"google-map":  true,
+			// 	"apple-maps":  true,
+			// 	"waze":        true,
+			// 	"coordinates": true,
+			// 	"address":     true,
+			// }
+			// if !validTypes[store.Type] {
+			// 	return &validation.ValidationError{
+			// 		Error:      fmt.Sprintf("Invalid store type '%s' at index %d. Must be one of: google-map, apple-maps, waze, coordinates, address", store.Type, i),
+			// 		ErrorField: "offline",
+			// 	}
+			// }
 
 			// URL validation
 			if strings.TrimSpace(store.URL) == "" {
@@ -318,19 +318,19 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 				}
 			}
 
-			if store.Phone != nil && strings.TrimSpace(*store.Phone) == "" {
-				return &validation.ValidationError{
-					Error:      fmt.Sprintf("Phone cannot be empty when provided at index %d", i),
-					ErrorField: "offline",
-				}
-			}
+			// if store.Phone != nil && strings.TrimSpace(*store.Phone) == "" {
+			// 	return &validation.ValidationError{
+			// 		Error:      fmt.Sprintf("Phone cannot be empty when provided at index %d", i),
+			// 		ErrorField: "offline",
+			// 	}
+			// }
 
-			if store.Hours != nil && strings.TrimSpace(*store.Hours) == "" {
-				return &validation.ValidationError{
-					Error:      fmt.Sprintf("Hours cannot be empty when provided at index %d", i),
-					ErrorField: "offline",
-				}
-			}
+			// if store.Hours != nil && strings.TrimSpace(*store.Hours) == "" {
+			// 	return &validation.ValidationError{
+			// 		Error:      fmt.Sprintf("Hours cannot be empty when provided at index %d", i),
+			// 		ErrorField: "offline",
+			// 	}
+			// }
 		}
 	}
 
