@@ -137,6 +137,26 @@ func CreateProduct(c *gin.Context) {
 	}
 	log.Println("")
 
+	// Unmarshal offline JSON string
+	var offlineInfo models.OfflineStores
+	if req.Offline != "" {
+		if err := json.Unmarshal([]byte(req.Offline), &offlineInfo); err != nil {
+			log.Printf("CreateProduct: Error unmarshaling offline JSON: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Invalid offline data format", nil)
+			return
+		}
+		log.Printf("CreateProduct: Successfully unmarshaled offlineInfo: %+v", offlineInfo)
+
+		// Set default is_active to true for any stores that don't specify it
+		for i := range offlineInfo {
+			// If is_active is not set (false), default it to true
+			if !offlineInfo[i].IsActive {
+				offlineInfo[i].IsActive = true
+			}
+		}
+	}
+	log.Println("")
+
 	// Parse date fields
 	var tanggalProduk time.Time
 	if req.TanggalProduk != "" {
@@ -260,6 +280,7 @@ func CreateProduct(c *gin.Context) {
 		Harga:         req.Harga,
 		HargaDiskon:   req.HargaDiskon, // This is already *float64
 		Marketplace:   marketplaceInfo,
+		Offline:       offlineInfo,
 		Gambar:        imageUrls,
 		TanggalProduk: tanggalProduk,
 		TanggalTerima: tanggalTerima,
@@ -587,6 +608,48 @@ func UpdateProduct(c *gin.Context) {
 		log.Printf("UpdateProduct: Successfully updated marketplace: %+v", productToUpdate.Marketplace)
 	}
 
+	// Handle offline field - check for both string and array formats
+	if offlineStr, ok := requestBody["offline"].(string); ok && offlineStr != "" {
+		log.Printf("UpdateProduct: Processing offline update (string format): %s", offlineStr)
+
+		var offlineStores models.OfflineStores
+		if err := json.Unmarshal([]byte(offlineStr), &offlineStores); err != nil {
+			log.Printf("UpdateProduct: Failed to unmarshal offline data: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal offline data: "+err.Error(), nil)
+			return
+		}
+
+		// Set default is_active to true for any stores that don't specify it
+		for i := range offlineStores {
+			if !offlineStores[i].IsActive {
+				offlineStores[i].IsActive = true
+			}
+		}
+
+		productToUpdate.Offline = offlineStores
+		log.Printf("UpdateProduct: Successfully updated offline: %+v", productToUpdate.Offline)
+	} else if offline, ok := requestBody["offline"].([]interface{}); ok {
+		log.Printf("UpdateProduct: Processing offline update (array format): %+v", offline)
+
+		var offlineStores models.OfflineStores
+		offlineJSON, _ := json.Marshal(offline)
+		if err := json.Unmarshal(offlineJSON, &offlineStores); err != nil {
+			log.Printf("UpdateProduct: Failed to unmarshal offline data: %v", err)
+			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal offline data: "+err.Error(), nil)
+			return
+		}
+
+		// Set default is_active to true for any stores that don't specify it
+		for i := range offlineStores {
+			if !offlineStores[i].IsActive {
+				offlineStores[i].IsActive = true
+			}
+		}
+
+		productToUpdate.Offline = offlineStores
+		log.Printf("UpdateProduct: Successfully updated offline: %+v", productToUpdate.Offline)
+	}
+
 	// Handle image updates
 	if imageProcessed {
 		log.Printf("UpdateProduct: Replacing images with newly uploaded ones")
@@ -791,4 +854,52 @@ func RestoreProduct(c *gin.Context) {
 	}
 
 	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Product restored successfully"})
+}
+
+// TestFileUpload is a debug endpoint to test file uploads
+func TestFileUpload(c *gin.Context) {
+	log.Println("TestFileUpload: Starting file upload test")
+
+	// Check content type
+	contentType := c.GetHeader("Content-Type")
+	log.Printf("TestFileUpload: Content-Type: %s", contentType)
+
+	// Try to get multipart form
+	form, err := c.MultipartForm()
+	if err != nil {
+		log.Printf("TestFileUpload: Error getting multipart form: %v", err)
+		handlers.SendError(c, http.StatusBadRequest, "Failed to parse multipart form: "+err.Error(), nil)
+		return
+	}
+
+	log.Printf("TestFileUpload: Form files: %+v", form.File)
+
+	// Check for gambar files
+	if files, ok := form.File["gambar"]; ok {
+		log.Printf("TestFileUpload: Found %d files with key 'gambar'", len(files))
+		for i, file := range files {
+			log.Printf("TestFileUpload: File %d - Filename: %s, Size: %d, Header: %+v",
+				i, file.Filename, file.Size, file.Header)
+		}
+	} else {
+		log.Println("TestFileUpload: No files found with key 'gambar'")
+	}
+
+	// Check all form fields
+	log.Printf("TestFileUpload: All form fields: %+v", form.Value)
+
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
+		"message":      "File upload test completed",
+		"files_found":  len(form.File),
+		"content_type": contentType,
+	})
+}
+
+// Helper function to get map keys for debugging
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

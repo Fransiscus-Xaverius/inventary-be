@@ -27,6 +27,20 @@ type MarketplaceInfo struct {
 	Bukalapak *string `json:"bukalapak" optional:"true"`
 }
 
+// OfflineStoreInfo represents information about offline/physical stores
+type OfflineStoreInfo struct {
+	Name     string  `json:"name" validate:"required,min=1,max=100"`
+	Type     string  `json:"type" validate:"required,oneof=google-map apple-maps waze coordinates address"`
+	URL      string  `json:"url" validate:"required,url"`
+	Address  *string `json:"address,omitempty"` // Optional physical address as backup
+	Phone    *string `json:"phone,omitempty"`   // Optional store contact number
+	Hours    *string `json:"hours,omitempty"`   // Optional operating hours
+	IsActive bool    `json:"is_active"`         // Store availability status, defaults to true
+}
+
+// OfflineStores represents an array of offline store information
+type OfflineStores []OfflineStoreInfo
+
 type CreateProductRequest struct {
 	Artikel     string   `form:"artikel" binding:"required"`
 	Nama        string   `form:"nama" binding:"required"`
@@ -43,6 +57,7 @@ type CreateProductRequest struct {
 	HargaDiskon *float64 `form:"harga_diskon"`
 	Rating      string   `form:"rating"`      // JSON string
 	Marketplace string   `form:"marketplace"` // JSON string
+	Offline     string   `form:"offline"`     // JSON string
 	// Gambar        []*multipart.FileHeader `form:"gambar"`
 	TanggalProduk string `form:"tanggal_produk"`
 	TanggalTerima string `form:"tanggal_terima"`
@@ -68,6 +83,7 @@ type Product struct {
 	Harga         float64         `json:"harga"`            // HARGA
 	HargaDiskon   *float64        `json:"harga_diskon"`     // HARGA DISKON
 	Marketplace   MarketplaceInfo `json:"marketplace"`      // MARKETPLACE
+	Offline       OfflineStores   `json:"offline"`          // OFFLINE - Array of offline store info
 	Gambar        []string        `json:"gambar"`           // GAMBAR
 	TanggalProduk time.Time       `json:"tanggal_produk"`   // TANGGAL PRODUK
 	TanggalTerima time.Time       `json:"tanggal_terima"`   // TANGGAL TERIMA

@@ -16,6 +16,7 @@ CREATE TABLE
         harga NUMERIC(15, 2),
         harga_diskon NUMERIC(15, 2),
         marketplace JSONB,
+        offline JSONB,
         gambar TEXT[],
         tanggal_produk DATE,
         tanggal_terima DATE,
@@ -23,6 +24,9 @@ CREATE TABLE
         status TEXT,
         supplier TEXT,
         diupdate_oleh TEXT,
-        tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        tanggal_hapus TIMESTAMPTZ DEFAULT NULL,
+        tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        tanggal_hapus TIMESTAMPTZ DEFAULT NULL
     );
+
+-- Create index for offline field
+CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);

@@ -94,6 +94,7 @@ func CreateMasterProductsTableIfNotExists() error {
 			harga NUMERIC(15,2),
 			harga_diskon NUMERIC(15,2),
 			marketplace JSONB,
+			offline JSONB,
 			gambar TEXT[],
 			tanggal_produk DATE,
 			tanggal_terima DATE,
@@ -103,8 +104,18 @@ func CreateMasterProductsTableIfNotExists() error {
 			tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 			tanggal_hapus TIMESTAMPTZ
 		);`,
+		`DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = 'master_products' AND column_name = 'offline'
+			) THEN
+				ALTER TABLE master_products ADD COLUMN offline JSONB;
+			END IF;
+		END$$;`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);`,
+		`CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);`,
 		`DO $$
 		BEGIN
 			IF NOT EXISTS (
@@ -132,7 +143,7 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, 
+		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, 
 		CASE 
 			WHEN tanggal_terima IS NOT NULL THEN 
 				CASE
@@ -244,12 +255,13 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	for rows.Next() {
 		var p models.Product
 		var marketplaceJSON []byte
+		var offlineJSON []byte
 		var ratingJSON []byte
 		var usia string
 		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
@@ -270,6 +282,13 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 		if marketplaceJSON != nil {
 			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
 				log.Println("DB: Error unmarshalling marketplace JSON", err)
+				return nil, err
+			}
+		}
+
+		if offlineJSON != nil {
+			if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+				log.Println("DB: Error unmarshalling offline JSON", err)
 				return nil, err
 			}
 		}
@@ -309,12 +328,13 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 func FetchProductByArtikel(artikel string) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
+	var offlineJSON []byte
 	var ratingJSON []byte
 	var usia string
 	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
 		SELECT 
-			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, 
+			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, 
 			tanggal_produk, tanggal_terima, 
 			CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -329,7 +349,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 		FROM master_products 
 		WHERE artikel = $1 AND tanggal_hapus IS NULL
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -369,6 +389,13 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 			Style:   0,
 			Support: 0,
 			Purpose: []string{""},
+		}
+	}
+
+	if offlineJSON != nil {
+		if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+			log.Println("DB: Error unmarshalling offline JSON", err)
+			return p, err
 		}
 	}
 
@@ -388,12 +415,13 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
+	var offlineJSON []byte
 	var ratingJSON []byte
 	var usia string
 	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
 		SELECT 
-			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, 
+			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, 
 			tanggal_produk, tanggal_terima, 
 			CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -408,7 +436,7 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 		FROM master_products 
 		WHERE artikel = $1
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -448,6 +476,13 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 			Style:   0,
 			Support: 0,
 			Purpose: []string{""},
+		}
+	}
+
+	if offlineJSON != nil {
+		if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+			log.Println("DB: Error unmarshalling offline JSON", err)
+			return p, err
 		}
 	}
 
@@ -470,6 +505,11 @@ func InsertProduct(p *models.Product) error {
 		return err
 	}
 
+	offlineJSON, err := json.Marshal(p.Offline)
+	if err != nil {
+		return err
+	}
+
 	ratingJSON, err := json.Marshal(p.Rating)
 	if err != nil {
 		return err
@@ -477,8 +517,8 @@ func InsertProduct(p *models.Product) error {
 
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_products 
-		(artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		(artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		RETURNING no`)
 	if err != nil {
 		return err
@@ -501,6 +541,7 @@ func InsertProduct(p *models.Product) error {
 		p.Harga,
 		p.HargaDiskon, // This is now *float64, which PostgreSQL driver handles correctly for NULL
 		marketplaceJSON,
+		offlineJSON,
 		pq.Array(p.Gambar),
 		p.TanggalProduk,
 		p.TanggalTerima,
@@ -594,6 +635,17 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		fieldsToUpdate++
 		query += fmt.Sprintf(" marketplace = $%d,", paramCount)
 		args = append(args, marketplace)
+		paramCount++
+	}
+
+	if len(p.Offline) > 0 {
+		offline, err := json.Marshal(p.Offline)
+		if err != nil {
+			return *p, err
+		}
+		fieldsToUpdate++
+		query += fmt.Sprintf(" offline = $%d,", paramCount)
+		args = append(args, offline)
 		paramCount++
 	}
 
@@ -743,7 +795,7 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, 
+		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, 
 		CASE 
 			WHEN tanggal_terima IS NOT NULL THEN 
 				CASE
@@ -850,12 +902,13 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	for rows.Next() {
 		var p models.Product
 		var marketplaceJSON []byte
+		var offlineJSON []byte
 		var ratingJSON []byte
 		var usia string
 		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
 			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
@@ -875,6 +928,13 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 		if marketplaceJSON != nil {
 			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
 				log.Println("DB: Error unmarshalling marketplace JSON", err)
+				return nil, err
+			}
+		}
+
+		if offlineJSON != nil {
+			if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+				log.Println("DB: Error unmarshalling offline JSON", err)
 				return nil, err
 			}
 		}

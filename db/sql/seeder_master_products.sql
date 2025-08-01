@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS master_products (
     harga NUMERIC(15,2),
     harga_diskon NUMERIC(15, 2),
     marketplace JSONB,
+    offline JSONB,
     gambar TEXT[],
     tanggal_produk DATE,
     tanggal_terima DATE,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS master_products (
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);
 CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);
+CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);
 
 -- Add unique constraint if it doesn't exist
 DO $$
