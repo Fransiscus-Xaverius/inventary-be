@@ -183,6 +183,16 @@ func SetupRoutes() *gin.Engine {
 				bannersProtected.DELETE("/:id", adminHandlers.DeleteBanner)
 				bannersProtected.POST("/restore/:id", adminHandlers.RestoreBanner)
 			}
+
+			/**
+			 * Panduan Ukuran routes
+			 * These routes require authentication
+			 */
+			panduanUkuranProtected := admin.Group("/panduan-ukuran")
+			{
+				panduanUkuranProtected.POST("/", adminHandlers.UploadPanduanUkuran)
+				panduanUkuranProtected.DELETE("/", adminHandlers.DeletePanduanUkuran)
+			}
 		}
 	}
 
