@@ -55,8 +55,12 @@ func GetAllProducts(c *gin.Context) {
 	// Extract filter parameters
 	filters := helpers.ExtractFilters(c)
 
+	// Extract marketplace and offline filters
+	isMarketplaceFilter := strings.Contains(c.Request.URL.RawQuery, "online")
+	isOfflineFilter := strings.Contains(c.Request.URL.RawQuery, "offline")
+
 	// Fetch total count with filters applied
-	totalCount, err := db.CountAllProducts(queryStr, filters)
+	totalCount, err := db.CountAllProducts(queryStr, filters, isMarketplaceFilter, isOfflineFilter)
 	if err != nil {
 		handlers.SendError(c, http.StatusInternalServerError, "Failed to count products", nil)
 		return
@@ -66,7 +70,7 @@ func GetAllProducts(c *gin.Context) {
 	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 
 	// Fetch paginated products with filters applied
-	products, err := db.FetchAllProducts(limit, offset, queryStr, filters, sortColumn, sortDirection)
+	products, err := db.FetchAllProducts(limit, offset, queryStr, filters, sortColumn, sortDirection, isMarketplaceFilter, isOfflineFilter)
 	if err != nil {
 		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch products", nil)
 		return

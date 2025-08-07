@@ -13,7 +13,7 @@ import (
 	"github.com/lib/pq"
 )
 
-func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
+func CountAllProducts(queryStr string, filters map[string]string, isMarketplaceFilter bool, isOfflineFilter bool) (int, error) {
 	baseQuery := "SELECT COUNT(no) FROM master_products WHERE tanggal_hapus IS NULL"
 	args := []interface{}{}
 	paramCount := 1
@@ -68,6 +68,14 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 			args = append(args, value)
 			paramCount++
 		}
+	}
+
+	// Handle marketplace and offline filters
+	if isMarketplaceFilter {
+		baseQuery += ` AND marketplace IS NOT NULL AND marketplace != '{}'`
+	}
+	if isOfflineFilter {
+		baseQuery += ` AND offline IS NOT NULL AND offline != '{}'`
 	}
 
 	var count int
@@ -137,7 +145,7 @@ func CreateMasterProductsTableIfNotExists() error {
 	return nil
 }
 
-func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]models.Product, error) {
+func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string, isMarketplaceFilter bool, isOfflineFilter bool) ([]models.Product, error) {
 	products := []models.Product{}
 
 	// Start building the query with parameters
@@ -216,6 +224,14 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 			args = append(args, value)
 			paramCount++
 		}
+	}
+
+	// Handle marketplace and offline filters
+	if isMarketplaceFilter {
+		baseQuery += ` AND marketplace IS NOT NULL AND marketplace != '{}'`
+	}
+	if isOfflineFilter {
+		baseQuery += ` AND offline IS NOT NULL AND offline != '{}'`
 	}
 
 	// Add sorting
