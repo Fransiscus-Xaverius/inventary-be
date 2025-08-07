@@ -481,23 +481,23 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 	}
 
 	// Validate rating (required structure with valid values)
-	if p.Rating.Comfort < 0 || p.Rating.Comfort > 10 {
+	if p.Rating.Comfort < 0 || p.Rating.Comfort > 5 {
 		return &validation.ValidationError{
-			Error:      "Comfort rating must be between 0 and 10",
+			Error:      "Comfort rating must be between 0 and 5",
 			ErrorField: "rating.comfort",
 		}
 	}
 
-	if p.Rating.Style < 0 || p.Rating.Style > 10 {
+	if p.Rating.Style < 0 || p.Rating.Style > 5 {
 		return &validation.ValidationError{
-			Error:      "Style rating must be between 0 and 10",
+			Error:      "Style rating must be between 0 and 5",
 			ErrorField: "rating.style",
 		}
 	}
 
-	if p.Rating.Support < 0 || p.Rating.Support > 10 {
+	if p.Rating.Support < 0 || p.Rating.Support > 5 {
 		return &validation.ValidationError{
-			Error:      "Support rating must be between 0 and 10",
+			Error:      "Support rating must be between 0 and 5",
 			ErrorField: "rating.support",
 		}
 	}
