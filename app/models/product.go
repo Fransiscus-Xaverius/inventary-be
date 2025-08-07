@@ -20,11 +20,11 @@ type ProductRating struct {
 }
 
 type MarketplaceInfo struct {
-	Tokopedia *string `json:"tokopedia" optional:"true"`
-	Shopee    *string `json:"shopee" optional:"true"`
-	Lazada    *string `json:"lazada" optional:"true"`
-	Tiktok    *string `json:"tiktok" optional:"true"`
-	Bukalapak *string `json:"bukalapak" optional:"true"`
+	Tokopedia *string `json:"tokopedia,omitempty"`
+	Shopee    *string `json:"shopee,omitempty"`
+	Lazada    *string `json:"lazada,omitempty"`
+	Tiktok    *string `json:"tiktok,omitempty"`
+	Bukalapak *string `json:"bukalapak,omitempty"`
 }
 
 // OfflineStoreInfo represents information about offline/physical stores

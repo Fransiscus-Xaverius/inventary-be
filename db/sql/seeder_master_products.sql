@@ -242,7 +242,7 @@ BEGIN
             floor(random()*(1000000-50000 + 1) + 50000)::numeric(15,2),
             floor(random()*(500000-40000 + 1))::numeric(15,2),
             marketplace,
-            ARRAY['/uploads/products/1.jpg', '/uploads/products/2.jpg', '/uploads/products/3.jpg'],
+            ARRAY['/uploads/products/1.png', '/uploads/products/2.png', '/uploads/products/3.png'],
             CURRENT_DATE - (floor(random()*365)::int || ' days')::interval,
             CURRENT_DATE - (floor(random()*1000)::int || ' days')::interval,
             (ARRAY['Active', 'Inactive', 'Discontinued'])[floor(random()*3 + 1)],

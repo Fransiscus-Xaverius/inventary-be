@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -411,7 +412,10 @@ func UpdateProduct(c *gin.Context) {
 			}
 			requestBody["marketplace"] = marketplaceInfo
 			log.Printf("UpdateProduct: Successfully unmarshaled marketplace: %+v", marketplaceInfo)
+		} else if marketplaceStr, ok := requestBody["marketplace"].(string); ok && marketplaceStr == "" {
+			log.Printf("UpdateProduct: Empty marketplace string received - will clear marketplace")
 		}
+		log.Printf("UpdateProduct: Final requestBody keys: %v", getMapKeys(requestBody))
 		log.Println("")
 
 		// Handle image uploads
@@ -484,6 +488,7 @@ func UpdateProduct(c *gin.Context) {
 			return
 		}
 		log.Printf("UpdateProduct: Successfully bound JSON request: %+v", requestBody)
+		log.Printf("UpdateProduct: JSON requestBody keys: %v", getMapKeys(requestBody))
 		log.Println("")
 	}
 
@@ -581,6 +586,8 @@ func UpdateProduct(c *gin.Context) {
 	// Handle marketplace field
 	if marketplace, ok := requestBody["marketplace"].(map[string]interface{}); ok {
 		log.Printf("UpdateProduct: Processing marketplace update: %+v", marketplace)
+		log.Printf("UpdateProduct: Marketplace length: %d", len(marketplace))
+		log.Printf("UpdateProduct: Marketplace keys: %v", getMapKeys(marketplace))
 
 		// Check if marketplace is empty (clearing the field)
 		if len(marketplace) == 0 {
@@ -603,15 +610,29 @@ func UpdateProduct(c *gin.Context) {
 				}
 			}
 
-			// Unmarshal to existing struct
+			// Clear existing marketplace struct to ensure old values are removed
+			productToUpdate.Marketplace = models.MarketplaceInfo{}
+
+			// Unmarshal to the cleared struct
 			marketplaceJSON, _ := json.Marshal(marketplace)
 			if err := json.Unmarshal(marketplaceJSON, &productToUpdate.Marketplace); err != nil {
 				log.Printf("UpdateProduct: Failed to unmarshal marketplace data: %v", err)
 				handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
 				return
 			}
+			v := reflect.ValueOf(productToUpdate.Marketplace)
+			typeOfS := v.Type()
+
+			for i := 0; i < v.NumField(); i++ {
+				log.Printf("UpdateProduct: Marketplace key: %s, value: %+v", typeOfS.Field(i).Name, v.Field(i).Interface())
+			}
 		}
 		log.Printf("UpdateProduct: Successfully updated marketplace: %+v", productToUpdate.Marketplace)
+		log.Printf("UpdateProduct: Marketplace after update - Tokopedia: %v, Shopee: %v, Lazada: %v, Tiktok: %v, Bukalapak: %v",
+			productToUpdate.Marketplace.Tokopedia, productToUpdate.Marketplace.Shopee, productToUpdate.Marketplace.Lazada,
+			productToUpdate.Marketplace.Tiktok, productToUpdate.Marketplace.Bukalapak)
+	} else {
+		log.Printf("UpdateProduct: No marketplace field in request body")
 	}
 
 	// Handle offline field - check for both string and array formats
