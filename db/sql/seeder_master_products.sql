@@ -90,6 +90,10 @@ DECLARE
     random_deskripsi TEXT;
 
     marketplace JSONB;
+    offlineList JSONB[];
+    offlineListCount INTEGER;
+    randomOfflineListCount INTEGER;
+    randomOfflineList JSONB;
 BEGIN
     -- Get all color IDs from master_colors table
     SELECT ARRAY_AGG(id) INTO color_ids FROM master_colors WHERE tanggal_hapus IS NULL;
@@ -206,19 +210,51 @@ BEGIN
             'bukalapak', 'https://www.bukalapak.com/everysoft/product-id'
         );
 
+        -- Generate random offline values        
+        offlineList := ARRAY[
+            json_build_object(
+                'name', 'Matahari',
+                'url', 'https://maps.google.com/maps?q=Matahari',
+                'address', 'Jl. Raya Jakarta No. 123',
+                'is_active', true
+            ),
+            json_build_object(
+                'name', 'YK Jakarta',
+                'url', 'https://maps.google.com/maps?q=YK Jakarta',
+                'address', 'Jl. Raya Jakarta No. 123',
+                'is_active', true
+            ),
+            json_build_object(
+                'name', 'YK Bandung',
+                'url', 'https://maps.google.com/maps?q=YK Bandung',
+                'address', 'Jl. Raya Jakarta No. 123',
+                'is_active', true
+            )
+        ];
+
+        -- Select random numbers of offline stores
+        offlineListCount := array_length(offlineList, 1);
+        randomOfflineListCount := floor(random()*offlineListCount + 1)::int;
+
+        -- Select more than 1 offline stores
+        randomOfflineList := jsonb_build_array();
+        FOR i IN 1..randomOfflineListCount LOOP
+            randomOfflineList := randomOfflineList || offlineList[floor(random()*offlineListCount + 1)];
+        END LOOP;
+
         -- Insert product with random values
         INSERT INTO master_products (
             artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, 
-            tipe, harga, harga_diskon, marketplace, gambar, tanggal_produk, tanggal_terima, 
+            tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, 
             status, supplier, diupdate_oleh, tanggal_update
         ) VALUES (
             'ART-' || LPAD(CAST(product_id AS TEXT), 6, '0'),
             random_nama,
             random_deskripsi,
             jsonb_build_object(
-                'comfort', floor(random()*11)::int,
-                'style', floor(random()*11)::int,
-                'support', floor(random()*11)::int,
+                'comfort', floor(random()*6)::int,
+                'style', floor(random()*6)::int,
+                'support', floor(random()*6)::int,
                 'purpose', CASE 
                     -- 70% chance of single purpose
                     WHEN random() < 0.7 THEN jsonb_build_array(
@@ -242,6 +278,7 @@ BEGIN
             floor(random()*(1000000-50000 + 1) + 50000)::numeric(15,2),
             floor(random()*(500000-40000 + 1))::numeric(15,2),
             marketplace,
+            randomOfflineList,
             ARRAY['/uploads/products/1.png', '/uploads/products/2.png', '/uploads/products/3.png'],
             CURRENT_DATE - (floor(random()*365)::int || ' days')::interval,
             CURRENT_DATE - (floor(random()*1000)::int || ' days')::interval,
