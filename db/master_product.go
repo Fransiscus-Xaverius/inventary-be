@@ -627,27 +627,25 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		log.Printf("DB UpdateProduct: Skipping rating update - considered empty/invalid")
 	}
 
-	if p.Marketplace != (models.MarketplaceInfo{}) {
-		marketplace, err := json.Marshal(p.Marketplace)
-		if err != nil {
-			return *p, err
-		}
-		fieldsToUpdate++
-		query += fmt.Sprintf(" marketplace = $%d,", paramCount)
-		args = append(args, marketplace)
-		paramCount++
+	// Always update marketplace field - it can be empty to clear the field
+	marketplace, err := json.Marshal(p.Marketplace)
+	if err != nil {
+		return *p, err
 	}
+	fieldsToUpdate++
+	query += fmt.Sprintf(" marketplace = $%d,", paramCount)
+	args = append(args, marketplace)
+	paramCount++
 
-	if len(p.Offline) > 0 {
-		offline, err := json.Marshal(p.Offline)
-		if err != nil {
-			return *p, err
-		}
-		fieldsToUpdate++
-		query += fmt.Sprintf(" offline = $%d,", paramCount)
-		args = append(args, offline)
-		paramCount++
+	// Always update offline field - it can be empty array to clear the field
+	offline, err := json.Marshal(p.Offline)
+	if err != nil {
+		return *p, err
 	}
+	fieldsToUpdate++
+	query += fmt.Sprintf(" offline = $%d,", paramCount)
+	args = append(args, offline)
+	paramCount++
 
 	if p.Gambar != nil {
 		fieldsToUpdate++

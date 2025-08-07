@@ -582,71 +582,88 @@ func UpdateProduct(c *gin.Context) {
 	if marketplace, ok := requestBody["marketplace"].(map[string]interface{}); ok {
 		log.Printf("UpdateProduct: Processing marketplace update: %+v", marketplace)
 
-		// Validate keys
-		validKeys := map[string]bool{
-			"tokopedia": true,
-			"shopee":    true,
-			"lazada":    true,
-			"tiktok":    true,
-			"bukalapak": true,
-		}
-		for key := range marketplace {
-			if !validKeys[key] {
-				log.Printf("UpdateProduct: Invalid marketplace key: %s", key)
-				handlers.SendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+		// Check if marketplace is empty (clearing the field)
+		if len(marketplace) == 0 {
+			log.Printf("UpdateProduct: Clearing marketplace field")
+			productToUpdate.Marketplace = models.MarketplaceInfo{}
+		} else {
+			// Validate keys
+			validKeys := map[string]bool{
+				"tokopedia": true,
+				"shopee":    true,
+				"lazada":    true,
+				"tiktok":    true,
+				"bukalapak": true,
+			}
+			for key := range marketplace {
+				if !validKeys[key] {
+					log.Printf("UpdateProduct: Invalid marketplace key: %s", key)
+					handlers.SendError(c, http.StatusBadRequest, "Invalid key in marketplace object: "+key, nil)
+					return
+				}
+			}
+
+			// Unmarshal to existing struct
+			marketplaceJSON, _ := json.Marshal(marketplace)
+			if err := json.Unmarshal(marketplaceJSON, &productToUpdate.Marketplace); err != nil {
+				log.Printf("UpdateProduct: Failed to unmarshal marketplace data: %v", err)
+				handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
 				return
 			}
-		}
-
-		// Unmarshal to existing struct
-		marketplaceJSON, _ := json.Marshal(marketplace)
-		if err := json.Unmarshal(marketplaceJSON, &productToUpdate.Marketplace); err != nil {
-			log.Printf("UpdateProduct: Failed to unmarshal marketplace data: %v", err)
-			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal marketplace data: "+err.Error(), nil)
-			return
 		}
 		log.Printf("UpdateProduct: Successfully updated marketplace: %+v", productToUpdate.Marketplace)
 	}
 
 	// Handle offline field - check for both string and array formats
-	if offlineStr, ok := requestBody["offline"].(string); ok && offlineStr != "" {
-		log.Printf("UpdateProduct: Processing offline update (string format): %s", offlineStr)
+	if offlineStr, ok := requestBody["offline"].(string); ok {
+		if offlineStr == "" {
+			log.Printf("UpdateProduct: Clearing offline field (empty string)")
+			productToUpdate.Offline = models.OfflineStores{}
+		} else {
+			log.Printf("UpdateProduct: Processing offline update (string format): %s", offlineStr)
 
-		var offlineStores models.OfflineStores
-		if err := json.Unmarshal([]byte(offlineStr), &offlineStores); err != nil {
-			log.Printf("UpdateProduct: Failed to unmarshal offline data: %v", err)
-			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal offline data: "+err.Error(), nil)
-			return
-		}
-
-		// Set default is_active to true for any stores that don't specify it
-		for i := range offlineStores {
-			if !offlineStores[i].IsActive {
-				offlineStores[i].IsActive = true
+			var offlineStores models.OfflineStores
+			if err := json.Unmarshal([]byte(offlineStr), &offlineStores); err != nil {
+				log.Printf("UpdateProduct: Failed to unmarshal offline data: %v", err)
+				handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal offline data: "+err.Error(), nil)
+				return
 			}
-		}
 
-		productToUpdate.Offline = offlineStores
+			// Set default is_active to true for any stores that don't specify it
+			for i := range offlineStores {
+				if !offlineStores[i].IsActive {
+					offlineStores[i].IsActive = true
+				}
+			}
+
+			productToUpdate.Offline = offlineStores
+		}
 		log.Printf("UpdateProduct: Successfully updated offline: %+v", productToUpdate.Offline)
 	} else if offline, ok := requestBody["offline"].([]interface{}); ok {
 		log.Printf("UpdateProduct: Processing offline update (array format): %+v", offline)
 
-		var offlineStores models.OfflineStores
-		offlineJSON, _ := json.Marshal(offline)
-		if err := json.Unmarshal(offlineJSON, &offlineStores); err != nil {
-			log.Printf("UpdateProduct: Failed to unmarshal offline data: %v", err)
-			handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal offline data: "+err.Error(), nil)
-			return
-		}
-
-		// Set default is_active to true for any stores that don't specify it
-		for i := range offlineStores {
-			if !offlineStores[i].IsActive {
-				offlineStores[i].IsActive = true
+		// Check if offline array is empty (clearing the field)
+		if len(offline) == 0 {
+			log.Printf("UpdateProduct: Clearing offline field (empty array)")
+			productToUpdate.Offline = models.OfflineStores{}
+		} else {
+			var offlineStores models.OfflineStores
+			offlineJSON, _ := json.Marshal(offline)
+			if err := json.Unmarshal(offlineJSON, &offlineStores); err != nil {
+				log.Printf("UpdateProduct: Failed to unmarshal offline data: %v", err)
+				handlers.SendError(c, http.StatusBadRequest, "Failed to unmarshal offline data: "+err.Error(), nil)
+				return
 			}
-		}
 
-		productToUpdate.Offline = offlineStores
+			// Set default is_active to true for any stores that don't specify it
+			for i := range offlineStores {
+				if !offlineStores[i].IsActive {
+					offlineStores[i].IsActive = true
+				}
+			}
+
+			productToUpdate.Offline = offlineStores
+		}
 		log.Printf("UpdateProduct: Successfully updated offline: %+v", productToUpdate.Offline)
 	}
 
