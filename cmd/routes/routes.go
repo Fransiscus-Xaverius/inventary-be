@@ -44,7 +44,7 @@ func SetupRoutes() *gin.Engine {
 		 */
 		products := api.Group("/products")
 		{
-			products.GET("/", publicHandlers.GetAllProducts)
+			products.GET("", publicHandlers.GetAllProducts)
 			products.GET("/:artikel", publicHandlers.GetProductByArtikel)
 		}
 
@@ -70,8 +70,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			productsProtected := admin.Group("/products")
 			{
-				productsProtected.GET("/", adminHandlers.GetAllProducts)
-				productsProtected.POST("/", adminHandlers.CreateProduct)
+				productsProtected.GET("", adminHandlers.GetAllProducts)
+				productsProtected.POST("", adminHandlers.CreateProduct)
 				productsProtected.GET("/deleted", adminHandlers.GetDeletedProducts) // Route for fetching deleted products
 				productsProtected.GET("/:artikel", adminHandlers.GetProductByArtikel)
 				productsProtected.PUT("/:artikel", adminHandlers.UpdateProduct)
@@ -85,8 +85,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			colorsProtected := admin.Group("/colors")
 			{
-				colorsProtected.GET("/", adminHandlers.GetAllColors)
-				colorsProtected.POST("/", adminHandlers.CreateColor)
+				colorsProtected.GET("", adminHandlers.GetAllColors)
+				colorsProtected.POST("", adminHandlers.CreateColor)
 				colorsProtected.GET("/deleted", adminHandlers.GetDeletedColors)
 				colorsProtected.GET("/:id", adminHandlers.GetColorByID)
 				colorsProtected.PUT("/:id", adminHandlers.UpdateColor)
@@ -100,8 +100,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			grupsProtected := admin.Group("/grups")
 			{
-				grupsProtected.GET("/", adminHandlers.GetAllGrups)
-				grupsProtected.POST("/", adminHandlers.CreateGrup)
+				grupsProtected.GET("", adminHandlers.GetAllGrups)
+				grupsProtected.POST("", adminHandlers.CreateGrup)
 				grupsProtected.GET("/deleted", adminHandlers.GetDeletedGrups)
 				grupsProtected.GET("/:id", adminHandlers.GetGrupByID)
 				grupsProtected.PUT("/:id", adminHandlers.UpdateGrup)
@@ -115,8 +115,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			unitsProtected := admin.Group("/units")
 			{
-				unitsProtected.GET("/", adminHandlers.GetAllUnits)
-				unitsProtected.POST("/", adminHandlers.CreateUnit)
+				unitsProtected.GET("", adminHandlers.GetAllUnits)
+				unitsProtected.POST("", adminHandlers.CreateUnit)
 				unitsProtected.GET("/deleted", adminHandlers.GetDeletedUnits)
 				unitsProtected.GET("/:id", adminHandlers.GetUnitByID)
 				unitsProtected.PUT("/:id", adminHandlers.UpdateUnit)
@@ -130,8 +130,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			katsProtected := admin.Group("/kats")
 			{
-				katsProtected.GET("/", adminHandlers.GetAllKats)
-				katsProtected.POST("/", adminHandlers.CreateKat)
+				katsProtected.GET("", adminHandlers.GetAllKats)
+				katsProtected.POST("", adminHandlers.CreateKat)
 				katsProtected.GET("/deleted", adminHandlers.GetDeletedKats)
 				katsProtected.GET("/:id", adminHandlers.GetKatByID)
 				katsProtected.PUT("/:id", adminHandlers.UpdateKat)
@@ -145,8 +145,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			gendersProtected := admin.Group("/genders")
 			{
-				gendersProtected.GET("/", adminHandlers.GetAllGenders)
-				gendersProtected.POST("/", adminHandlers.CreateGender)
+				gendersProtected.GET("", adminHandlers.GetAllGenders)
+				gendersProtected.POST("", adminHandlers.CreateGender)
 				gendersProtected.GET("/deleted", adminHandlers.GetDeletedGenders)
 				gendersProtected.GET("/:id", adminHandlers.GetGenderByID)
 				gendersProtected.PUT("/:id", adminHandlers.UpdateGender)
@@ -160,8 +160,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			tipesProtected := admin.Group("/tipes")
 			{
-				tipesProtected.GET("/", adminHandlers.GetAllTipes)
-				tipesProtected.POST("/", adminHandlers.CreateTipe)
+				tipesProtected.GET("", adminHandlers.GetAllTipes)
+				tipesProtected.POST("", adminHandlers.CreateTipe)
 				tipesProtected.GET("/deleted", adminHandlers.GetDeletedTipes)
 				tipesProtected.GET("/:id", adminHandlers.GetTipeByID)
 				tipesProtected.PUT("/:id", adminHandlers.UpdateTipe)
@@ -175,8 +175,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			bannersProtected := admin.Group("/banners")
 			{
-				bannersProtected.GET("/", adminHandlers.GetAllBanners)
-				bannersProtected.POST("/", adminHandlers.CreateBanner)
+				bannersProtected.GET("", adminHandlers.GetAllBanners)
+				bannersProtected.POST("", adminHandlers.CreateBanner)
 				bannersProtected.GET("/deleted", adminHandlers.GetDeletedBanners)
 				bannersProtected.GET("/:id", adminHandlers.GetBannerByID)
 				bannersProtected.PUT("/:id", adminHandlers.UpdateBanner)
@@ -190,8 +190,8 @@ func SetupRoutes() *gin.Engine {
 			 */
 			panduanUkuranProtected := admin.Group("/panduan-ukuran")
 			{
-				panduanUkuranProtected.POST("/", adminHandlers.UploadPanduanUkuran)
-				panduanUkuranProtected.DELETE("/", adminHandlers.DeletePanduanUkuran)
+				panduanUkuranProtected.POST("", adminHandlers.UploadPanduanUkuran)
+				panduanUkuranProtected.DELETE("", adminHandlers.DeletePanduanUkuran)
 			}
 		}
 	}
@@ -259,8 +259,8 @@ func CreateServer(port string, handler *gin.Engine) *http.Server {
 	return &http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 }
