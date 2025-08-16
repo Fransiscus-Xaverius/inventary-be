@@ -58,6 +58,11 @@ func SetupRoutes() *gin.Engine {
 		}
 
 		/**
+		 * Newsletter routes
+		 */
+		api.POST("/newsletter", publicHandlers.SubscribeToNewsletter)
+
+		/**
 		 * Admin routes
 		 * These routes require authentication
 		 */
@@ -192,6 +197,20 @@ func SetupRoutes() *gin.Engine {
 			{
 				panduanUkuranProtected.POST("", adminHandlers.UploadPanduanUkuran)
 				panduanUkuranProtected.DELETE("", adminHandlers.DeletePanduanUkuran)
+			}
+
+			/**
+			 * Master Newsletter routes
+			 * These routes require authentication
+			 */
+			newslettersProtected := admin.Group("/newsletters")
+			{
+				newslettersProtected.GET("", adminHandlers.GetAllNewsletters)
+				newslettersProtected.GET("/deleted", adminHandlers.GetDeletedNewsletters)
+				newslettersProtected.GET("/:id", adminHandlers.GetNewsletterByID)
+				newslettersProtected.PUT("/:id", adminHandlers.UpdateNewsletter)
+				newslettersProtected.DELETE("/:id", adminHandlers.DeleteNewsletter)
+				newslettersProtected.POST("/restore/:id", adminHandlers.RestoreNewsletter)
 			}
 		}
 	}

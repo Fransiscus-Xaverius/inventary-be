@@ -84,6 +84,10 @@ func InitDB() error {
 		return fmt.Errorf("failed to create banners table: %w", err)
 	}
 
+	if err := CreateMasterNewsletterTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_newsletter table: %w", err)
+	}
+
 	log.Println("Database initialization completed successfully")
 	return nil
 }
