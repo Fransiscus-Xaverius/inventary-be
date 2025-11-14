@@ -1,8 +1,9 @@
-package handlers
+package publicHandlers
 
 import (
 	"net/http"
 
+	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
 )
@@ -12,10 +13,10 @@ func GetFilterOptions(c *gin.Context) {
 	// Fetch all filter options from the database
 	filterOptions, err := db.FetchFilterOptions()
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch filter options: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch filter options: "+err.Error(), nil)
 		return
 	}
 
 	// Return the filter options
-	sendSuccess(c, http.StatusOK, filterOptions)
+	handlers.SendSuccess(c, http.StatusOK, filterOptions)
 }

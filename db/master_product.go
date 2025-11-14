@@ -2,15 +2,18 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/everysoft/inventary-be/app/models"
+	"github.com/lib/pq"
 )
 
-func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
+func CountAllProducts(queryStr string, filters map[string]string, isMarketplaceFilter bool, isOfflineFilter bool) (int, error) {
 	baseQuery := "SELECT COUNT(no) FROM master_products WHERE tanggal_hapus IS NULL"
 	args := []interface{}{}
 	paramCount := 1
@@ -19,6 +22,9 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(rating AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -28,6 +34,12 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -58,6 +70,14 @@ func CountAllProducts(queryStr string, filters map[string]string) (int, error) {
 		}
 	}
 
+	// Handle marketplace and offline filters
+	if isMarketplaceFilter {
+		baseQuery += ` AND marketplace IS NOT NULL AND marketplace != '{}'`
+	}
+	if isOfflineFilter {
+		baseQuery += ` AND offline IS NOT NULL AND offline != '{}'`
+	}
+
 	var count int
 	err := DB.QueryRow(baseQuery, args...).Scan(&count)
 	return count, err
@@ -68,6 +88,9 @@ func CreateMasterProductsTableIfNotExists() error {
 		`CREATE TABLE IF NOT EXISTS master_products (
 			no SERIAL PRIMARY KEY,
 			artikel TEXT NOT NULL,
+			nama TEXT,
+			deskripsi TEXT,
+			rating JSONB,
 			warna TEXT,
 			size TEXT,
 			grup TEXT,
@@ -77,6 +100,10 @@ func CreateMasterProductsTableIfNotExists() error {
 			gender TEXT,
 			tipe TEXT,
 			harga NUMERIC(15,2),
+			harga_diskon NUMERIC(15,2),
+			marketplace JSONB,
+			offline JSONB,
+			gambar TEXT[],
 			tanggal_produk DATE,
 			tanggal_terima DATE,
 			status TEXT,
@@ -85,8 +112,18 @@ func CreateMasterProductsTableIfNotExists() error {
 			tanggal_update TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 			tanggal_hapus TIMESTAMPTZ
 		);`,
+		`DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = 'master_products' AND column_name = 'offline'
+			) THEN
+				ALTER TABLE master_products ADD COLUMN offline JSONB;
+			END IF;
+		END$$;`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);`,
+		`CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);`,
 		`DO $$
 		BEGIN
 			IF NOT EXISTS (
@@ -108,13 +145,13 @@ func CreateMasterProductsTableIfNotExists() error {
 	return nil
 }
 
-func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string) ([]models.Product, error) {
+func FetchAllProducts(limit, offset int, queryStr string, filters map[string]string, sortColumn string, sortDirection string, isMarketplaceFilter bool, isOfflineFilter bool) ([]models.Product, error) {
 	products := []models.Product{}
 
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, 
+		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, 
 		CASE 
 			WHEN tanggal_terima IS NOT NULL THEN 
 				CASE
@@ -135,6 +172,9 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(rating AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR unit ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -143,6 +183,12 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -180,13 +226,21 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 		}
 	}
 
+	// Handle marketplace and offline filters
+	if isMarketplaceFilter {
+		baseQuery += ` AND marketplace IS NOT NULL AND marketplace != '{}'`
+	}
+	if isOfflineFilter {
+		baseQuery += ` AND offline IS NOT NULL AND offline != '{}'`
+	}
+
 	// Add sorting
 	orderBy := " ORDER BY "
 	// Map of valid column names to prevent SQL injection
 	validColumns := map[string]bool{
-		"no": true, "artikel": true, "warna": true, "size": true, "grup": true,
+		"no": true, "artikel": true, "nama": true, "deskripsi": true, "rating": true, "warna": true, "size": true, "grup": true,
 		"unit": true, "kat": true, "model": true, "gender": true, "tipe": true,
-		"harga": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
+		"harga": true, "harga_diskon": true, "marketplace": true, "gambar": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
 		"status": true, "supplier": true, "diupdate_oleh": true, "tanggal_update": true,
 	}
 
@@ -210,19 +264,65 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	// Execute the query with all parameters
 	rows, err := DB.Query(baseQuery, args...)
 	if err != nil {
+		log.Println("DB: Error fetching all products", err)
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var p models.Product
+		var marketplaceJSON []byte
+		var offlineJSON []byte
+		var ratingJSON []byte
 		var usia string
+		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
-			&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk,
+			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
+			log.Println("DB: Error scanning rows", err)
 			return nil, err
+		}
+
+		// Convert sql.NullFloat64 to *float64, handling NaN values
+		if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+			p.HargaDiskon = &hargaDiskonNull.Float64
+		} else {
+			p.HargaDiskon = nil
+			if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+				log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+			}
+		}
+
+		if marketplaceJSON != nil {
+			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+				log.Println("DB: Error unmarshalling marketplace JSON", err)
+				return nil, err
+			}
+		}
+
+		if offlineJSON != nil {
+			if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+				log.Println("DB: Error unmarshalling offline JSON", err)
+				return nil, err
+			}
+		}
+
+		// Handle rating JSONB
+		if ratingJSON != nil {
+			if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+				log.Println("DB: Error unmarshalling rating JSON", err)
+				return nil, err
+			}
+		} else {
+			// Set default rating if null
+			p.Rating = models.ProductRating{
+				Comfort: 0,
+				Style:   0,
+				Support: 0,
+				Purpose: []string{""},
+			}
 		}
 
 		p.Usia = usia
@@ -243,10 +343,14 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 
 func FetchProductByArtikel(artikel string) (models.Product, error) {
 	var p models.Product
+	var marketplaceJSON []byte
+	var offlineJSON []byte
+	var ratingJSON []byte
 	var usia string
+	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
 		SELECT 
-			no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, 
+			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, 
 			tanggal_produk, tanggal_terima, 
 			CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -261,7 +365,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 		FROM master_products 
 		WHERE artikel = $1 AND tanggal_hapus IS NULL
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -269,6 +373,46 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 
 	if err != nil {
 		return p, err
+	}
+
+	// Convert sql.NullFloat64 to *float64, handling NaN values
+	if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+		p.HargaDiskon = &hargaDiskonNull.Float64
+	} else {
+		p.HargaDiskon = nil
+		if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+			log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+		}
+	}
+
+	if marketplaceJSON != nil {
+		if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+			log.Println("DB: Error unmarshalling marketplace JSON", err)
+			return p, err
+		}
+	}
+
+	// Handle rating JSONB
+	if ratingJSON != nil {
+		if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+			log.Println("DB: Error unmarshalling rating JSON", err)
+			return p, err
+		}
+	} else {
+		// Set default rating if null
+		p.Rating = models.ProductRating{
+			Comfort: 0,
+			Style:   0,
+			Support: 0,
+			Purpose: []string{""},
+		}
+	}
+
+	if offlineJSON != nil {
+		if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+			log.Println("DB: Error unmarshalling offline JSON", err)
+			return p, err
+		}
 	}
 
 	p.Usia = usia
@@ -286,10 +430,14 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 
 func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error) {
 	var p models.Product
+	var marketplaceJSON []byte
+	var offlineJSON []byte
+	var ratingJSON []byte
 	var usia string
+	var hargaDiskonNull sql.NullFloat64
 	err := DB.QueryRow(`
 		SELECT 
-			no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, 
+			no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, 
 			tanggal_produk, tanggal_terima, 
 			CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -304,7 +452,7 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 		FROM master_products 
 		WHERE artikel = $1
 	`, artikel).
-		Scan(&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
+		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
 		return p, errors.New("not_found")
@@ -312,6 +460,46 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 
 	if err != nil {
 		return p, err
+	}
+
+	// Convert sql.NullFloat64 to *float64, handling NaN values
+	if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+		p.HargaDiskon = &hargaDiskonNull.Float64
+	} else {
+		p.HargaDiskon = nil
+		if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+			log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+		}
+	}
+
+	if marketplaceJSON != nil {
+		if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+			log.Println("DB: Error unmarshalling marketplace JSON", err)
+			return p, err
+		}
+	}
+
+	// Handle rating JSONB
+	if ratingJSON != nil {
+		if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+			log.Println("DB: Error unmarshalling rating JSON", err)
+			return p, err
+		}
+	} else {
+		// Set default rating if null
+		p.Rating = models.ProductRating{
+			Comfort: 0,
+			Style:   0,
+			Support: 0,
+			Purpose: []string{""},
+		}
+	}
+
+	if offlineJSON != nil {
+		if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+			log.Println("DB: Error unmarshalling offline JSON", err)
+			return p, err
+		}
 	}
 
 	p.Usia = usia
@@ -328,10 +516,25 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 }
 
 func InsertProduct(p *models.Product) error {
+	marketplaceJSON, err := json.Marshal(p.Marketplace)
+	if err != nil {
+		return err
+	}
+
+	offlineJSON, err := json.Marshal(p.Offline)
+	if err != nil {
+		return err
+	}
+
+	ratingJSON, err := json.Marshal(p.Rating)
+	if err != nil {
+		return err
+	}
+
 	stmt, err := DB.Prepare(`
 		INSERT INTO master_products 
-		(artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		(artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, status, supplier, diupdate_oleh, tanggal_update) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		RETURNING no`)
 	if err != nil {
 		return err
@@ -340,6 +543,9 @@ func InsertProduct(p *models.Product) error {
 
 	return stmt.QueryRow(
 		p.Artikel,
+		p.Nama,
+		p.Deskripsi,
+		ratingJSON,
 		p.Warna,
 		p.Size,
 		p.Grup,
@@ -349,6 +555,10 @@ func InsertProduct(p *models.Product) error {
 		p.Gender,
 		p.Tipe,
 		p.Harga,
+		p.HargaDiskon, // This is now *float64, which PostgreSQL driver handles correctly for NULL
+		marketplaceJSON,
+		offlineJSON,
+		pq.Array(p.Gambar),
 		p.TanggalProduk,
 		p.TanggalTerima,
 		p.Status,
@@ -373,6 +583,8 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 
 	// Process string fields
 	stringFields := map[string]string{
+		"nama":          p.Nama,
+		"deskripsi":     p.Deskripsi,
 		"warna":         p.Warna,
 		"size":          p.Size,
 		"grup":          p.Grup,
@@ -400,6 +612,61 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		fieldsToUpdate++
 		query += fmt.Sprintf(" harga = $%d,", paramCount)
 		args = append(args, p.Harga)
+		paramCount++
+	}
+
+	// Handle HargaDiskon properly as *float64
+	if p.HargaDiskon != nil {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" harga_diskon = $%d,", paramCount)
+		args = append(args, p.HargaDiskon)
+		paramCount++
+	}
+
+	// Always update rating if it has proper structure (not default empty state)
+	// We consider it valid for update if it has proper keys, regardless of values
+	hasValidRating := len(p.Rating.Purpose) > 0
+	log.Printf("DB UpdateProduct: Rating check - hasValidRating: %v, Purpose length: %d, Rating: %+v", hasValidRating, len(p.Rating.Purpose), p.Rating)
+
+	if hasValidRating {
+		ratingJSON, err := json.Marshal(p.Rating)
+		if err != nil {
+			log.Printf("DB UpdateProduct: Failed to marshal rating: %v", err)
+			return *p, err
+		}
+		fieldsToUpdate++
+		query += fmt.Sprintf(" rating = $%d,", paramCount)
+		args = append(args, ratingJSON)
+		paramCount++
+		log.Printf("DB UpdateProduct: Added rating to update query. JSON: %s", string(ratingJSON))
+	} else {
+		log.Printf("DB UpdateProduct: Skipping rating update - considered empty/invalid")
+	}
+
+	// Always update marketplace field - it can be empty to clear the field
+	marketplace, err := json.Marshal(p.Marketplace)
+	if err != nil {
+		return *p, err
+	}
+	fieldsToUpdate++
+	query += fmt.Sprintf(" marketplace = $%d,", paramCount)
+	args = append(args, marketplace)
+	paramCount++
+
+	// Always update offline field - it can be empty array to clear the field
+	offline, err := json.Marshal(p.Offline)
+	if err != nil {
+		return *p, err
+	}
+	fieldsToUpdate++
+	query += fmt.Sprintf(" offline = $%d,", paramCount)
+	args = append(args, offline)
+	paramCount++
+
+	if p.Gambar != nil {
+		fieldsToUpdate++
+		query += fmt.Sprintf(" gambar = $%d,", paramCount)
+		args = append(args, pq.Array(p.Gambar))
 		paramCount++
 	}
 
@@ -448,7 +715,7 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 		return *p, errors.New("not_found")
 	}
 
-	// Fetch updated product
+	// Fetch and return the updated product
 	return FetchProductByArtikel(artikel)
 }
 
@@ -542,7 +809,7 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	// Start building the query with parameters
 	baseQuery := `
 	SELECT 
-		no, artikel, warna, size, grup, unit, kat, model, gender, tipe, harga, tanggal_produk, tanggal_terima, 
+		no, artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, 
 		CASE 
 			WHEN tanggal_terima IS NOT NULL THEN 
 				CASE
@@ -563,6 +830,9 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR rating ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -572,6 +842,13 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR gambar ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 
@@ -606,9 +883,9 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	orderBy := " ORDER BY "
 	// Map of valid column names to prevent SQL injection
 	validColumns := map[string]bool{
-		"no": true, "artikel": true, "warna": true, "size": true, "grup": true,
+		"no": true, "artikel": true, "nama": true, "deskripsi": true, "rating": true, "warna": true, "size": true, "grup": true,
 		"unit": true, "kat": true, "model": true, "gender": true, "tipe": true,
-		"harga": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
+		"harga": true, "harga_diskon": true, "marketplace": true, "gambar": true, "tanggal_produk": true, "tanggal_terima": true, "usia": true,
 		"status": true, "supplier": true, "diupdate_oleh": true, "tanggal_update": true,
 		"tanggal_hapus": true,
 	}
@@ -638,14 +915,58 @@ func FetchDeletedProducts(limit, offset int, queryStr string, filters map[string
 	defer rows.Close()
 	for rows.Next() {
 		var p models.Product
+		var marketplaceJSON []byte
+		var offlineJSON []byte
+		var ratingJSON []byte
 		var usia string
+		var hargaDiskonNull sql.NullFloat64
 		if err := rows.Scan(
-			&p.No, &p.Artikel, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
-			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &p.TanggalProduk,
+			&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat,
+			&p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk,
 			&p.TanggalTerima, &usia, &p.Status, &p.Supplier,
 			&p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus,
 		); err != nil {
 			return nil, err
+		}
+
+		// Convert sql.NullFloat64 to *float64, handling NaN values
+		if hargaDiskonNull.Valid && !math.IsNaN(hargaDiskonNull.Float64) {
+			p.HargaDiskon = &hargaDiskonNull.Float64
+		} else {
+			p.HargaDiskon = nil
+			if hargaDiskonNull.Valid && math.IsNaN(hargaDiskonNull.Float64) {
+				log.Printf("DB: Found NaN value for harga_diskon in product %s, converting to nil", p.Artikel)
+			}
+		}
+
+		if marketplaceJSON != nil {
+			if err := json.Unmarshal(marketplaceJSON, &p.Marketplace); err != nil {
+				log.Println("DB: Error unmarshalling marketplace JSON", err)
+				return nil, err
+			}
+		}
+
+		if offlineJSON != nil {
+			if err := json.Unmarshal(offlineJSON, &p.Offline); err != nil {
+				log.Println("DB: Error unmarshalling offline JSON", err)
+				return nil, err
+			}
+		}
+
+		// Handle rating JSONB
+		if ratingJSON != nil {
+			if err := json.Unmarshal(ratingJSON, &p.Rating); err != nil {
+				log.Println("DB: Error unmarshalling rating JSON", err)
+				return nil, err
+			}
+		} else {
+			// Set default rating if null
+			p.Rating = models.ProductRating{
+				Comfort: 0,
+				Style:   0,
+				Support: 0,
+				Purpose: []string{""},
+			}
 		}
 
 		p.Usia = usia
@@ -674,6 +995,9 @@ func CountDeletedProducts(queryStr string, filters map[string]string) (int, erro
 	if queryStr != "" {
 		searchQuery := ` AND (
 			artikel ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR nama ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR deskripsi ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR rating ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR warna ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR size ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR grup ILIKE $` + fmt.Sprintf("%d", paramCount) + `
@@ -683,6 +1007,13 @@ func CountDeletedProducts(queryStr string, filters map[string]string) (int, erro
 			OR gender ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR tipe ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(harga AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR CAST(harga_diskon AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tokopedia' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'shopee' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'lazada' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'tiktok' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR marketplace->>'bukalapak' ILIKE $` + fmt.Sprintf("%d", paramCount) + `
+			OR gambar ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CAST(no AS TEXT) ILIKE $` + fmt.Sprintf("%d", paramCount) + `
 			OR CASE 
 				WHEN tanggal_terima IS NOT NULL THEN 

@@ -80,6 +80,14 @@ func InitDB() error {
 		return fmt.Errorf("failed to create master_tipes table: %w", err)
 	}
 
+	if err := CreateBannersTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create banners table: %w", err)
+	}
+
+	if err := CreateMasterNewsletterTableIfNotExists(); err != nil {
+		return fmt.Errorf("failed to create master_newsletter table: %w", err)
+	}
+
 	log.Println("Database initialization completed successfully")
 	return nil
 }
@@ -106,6 +114,7 @@ func RunSeeders() error {
 		{name: "kats", path: "db/sql/seeder_master_kats.sql"},                            // Master categories
 		{name: "genders", path: "db/sql/seeder_master_genders.sql"},                      // Master genders
 		{name: "tipes", path: "db/sql/seeder_master_tipes.sql"},                          // Master tipes
+		{name: "banners", path: "db/sql/seeder_banners.sql"},                              // Master banners
 		{name: "category_color_labels", path: "db/sql/seeder_category_color_labels.sql"}, // Then category colors
 		{name: "products", path: "db/sql/seeder_master_products.sql"},                    // Finally load products with references
 	}

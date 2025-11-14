@@ -1,6 +1,8 @@
 package master_product
 
 import (
+	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +17,8 @@ import (
 type ValidationSchema struct {
 	ArtikelRequired       bool `json:"artikel_required"`
 	ArtikelUnique         bool `json:"artikel_unique"`
+	NamaRequired          bool `json:"nama_required"`
+	DeskripsiRequired     bool `json:"deskripsi_required"`
 	WarnaRequired         bool `json:"warna_required"`
 	SizeRequired          bool `json:"size_required"`
 	GrupRequired          bool `json:"grup_required"`
@@ -24,6 +28,9 @@ type ValidationSchema struct {
 	GenderRequired        bool `json:"gender_required"`
 	TipeRequired          bool `json:"tipe_required"`
 	HargaRequired         bool `json:"harga_required"`
+	MarketplaceRequired   bool `json:"marketplace_required"`
+	OfflineRequired       bool `json:"offline_required"`
+	GambarRequired        bool `json:"gambar_required"`
 	TanggalProdukRequired bool `json:"tanggal_produk_required"`
 	TanggalTerimaRequired bool `json:"tanggal_terima_required"`
 	StatusRequired        bool `json:"status_required"`
@@ -36,6 +43,8 @@ func DefaultCreateSchema() ValidationSchema {
 	return ValidationSchema{
 		ArtikelRequired:       true,
 		ArtikelUnique:         true,
+		NamaRequired:          true,
+		DeskripsiRequired:     true,
 		WarnaRequired:         true,
 		SizeRequired:          true,
 		GrupRequired:          true,
@@ -45,6 +54,9 @@ func DefaultCreateSchema() ValidationSchema {
 		GenderRequired:        true,
 		TipeRequired:          true,
 		HargaRequired:         true,
+		MarketplaceRequired:   false, // Exclusively optional with offline
+		OfflineRequired:       false, // Exclusively optional with marketplace
+		GambarRequired:        false,
 		TanggalProdukRequired: true,
 		TanggalTerimaRequired: true,
 		StatusRequired:        true,
@@ -58,6 +70,8 @@ func DefaultUpdateSchema() ValidationSchema {
 	return ValidationSchema{
 		ArtikelRequired:       false,
 		ArtikelUnique:         false,
+		NamaRequired:          false,
+		DeskripsiRequired:     false,
 		WarnaRequired:         false,
 		SizeRequired:          false,
 		GrupRequired:          false,
@@ -67,6 +81,9 @@ func DefaultUpdateSchema() ValidationSchema {
 		GenderRequired:        false,
 		TipeRequired:          false,
 		HargaRequired:         false,
+		MarketplaceRequired:   false,
+		OfflineRequired:       false,
+		GambarRequired:        false,
 		TanggalProdukRequired: false,
 		TanggalTerimaRequired: false,
 		StatusRequired:        false,
@@ -205,6 +222,119 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 
 	// Validate master data fields
 
+	// Nama
+	if schema.NamaRequired && strings.TrimSpace(p.Nama) == "" {
+		return &validation.ValidationError{
+			Error:      "Nama is required",
+			ErrorField: "nama",
+		}
+	}
+
+	// Deskripsi
+	if schema.DeskripsiRequired && strings.TrimSpace(p.Deskripsi) == "" {
+		return &validation.ValidationError{
+			Error:      "Deskripsi is required",
+			ErrorField: "deskripsi",
+		}
+	}
+
+	// Exclusive Optional Rule: At least one of marketplace or offline must be present
+	marketplaceEmpty := p.Marketplace == (models.MarketplaceInfo{}) ||
+		(p.Marketplace.Tokopedia == nil && p.Marketplace.Shopee == nil &&
+			p.Marketplace.Lazada == nil && p.Marketplace.Tiktok == nil &&
+			p.Marketplace.Bukalapak == nil)
+
+	offlineEmpty := len(p.Offline) == 0
+
+	if marketplaceEmpty && offlineEmpty {
+		return &validation.ValidationError{
+			Error:      "At least one of marketplace or offline stores must be provided",
+			ErrorField: "marketplace_offline",
+		}
+	}
+
+	// Marketplace validation (when provided)
+	if schema.MarketplaceRequired && marketplaceEmpty {
+		return &validation.ValidationError{
+			Error:      "Marketplace is required",
+			ErrorField: "marketplace",
+		}
+	}
+
+	// Offline validation (when provided)
+	if schema.OfflineRequired && offlineEmpty {
+		return &validation.ValidationError{
+			Error:      "Offline stores are required",
+			ErrorField: "offline",
+		}
+	}
+
+	// Validate offline stores entries if provided
+	if !offlineEmpty {
+		for i, store := range p.Offline {
+			// Name validation
+			if strings.TrimSpace(store.Name) == "" {
+				return &validation.ValidationError{
+					Error:      fmt.Sprintf("Store name is required at index %d", i),
+					ErrorField: "offline",
+				}
+			}
+
+			// Type validation
+			// validTypes := map[string]bool{
+			// 	"google-map":  true,
+			// 	"apple-maps":  true,
+			// 	"waze":        true,
+			// 	"coordinates": true,
+			// 	"address":     true,
+			// }
+			// if !validTypes[store.Type] {
+			// 	return &validation.ValidationError{
+			// 		Error:      fmt.Sprintf("Invalid store type '%s' at index %d. Must be one of: google-map, apple-maps, waze, coordinates, address", store.Type, i),
+			// 		ErrorField: "offline",
+			// 	}
+			// }
+
+			// URL validation
+			if strings.TrimSpace(store.URL) == "" {
+				return &validation.ValidationError{
+					Error:      fmt.Sprintf("Store URL is required at index %d", i),
+					ErrorField: "offline",
+				}
+			}
+
+			if _, err := url.Parse(store.URL); err != nil {
+				return &validation.ValidationError{
+					Error:      fmt.Sprintf("Invalid URL format at index %d: %s", i, err.Error()),
+					ErrorField: "offline",
+				}
+			}
+
+			// Optional fields validation (if provided, they must not be empty)
+			if store.Address != nil && strings.TrimSpace(*store.Address) == "" {
+				return &validation.ValidationError{
+					Error:      fmt.Sprintf("Address cannot be empty when provided at index %d", i),
+					ErrorField: "offline",
+				}
+			}
+
+			// if store.Phone != nil && strings.TrimSpace(*store.Phone) == "" {
+			// 	return &validation.ValidationError{
+			// 		Error:      fmt.Sprintf("Phone cannot be empty when provided at index %d", i),
+			// 		ErrorField: "offline",
+			// 	}
+			// }
+
+			// if store.Hours != nil && strings.TrimSpace(*store.Hours) == "" {
+			// 	return &validation.ValidationError{
+			// 		Error:      fmt.Sprintf("Hours cannot be empty when provided at index %d", i),
+			// 		ErrorField: "offline",
+			// 	}
+			// }
+		}
+	}
+
+	// Gambar
 	// Grup
 	if schema.GrupRequired && strings.TrimSpace(p.Grup) == "" {
 		return &validation.ValidationError{
@@ -347,6 +477,49 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 		return &validation.ValidationError{
 			Error:      "Diupdate oleh is required",
 			ErrorField: "diupdate_oleh",
+		}
+	}
+
+	// Validate rating (required structure with valid values)
+	if p.Rating.Comfort < 0 || p.Rating.Comfort > 5 {
+		return &validation.ValidationError{
+			Error:      "Comfort rating must be between 0 and 5",
+			ErrorField: "rating.comfort",
+		}
+	}
+
+	if p.Rating.Style < 0 || p.Rating.Style > 5 {
+		return &validation.ValidationError{
+			Error:      "Style rating must be between 0 and 5",
+			ErrorField: "rating.style",
+		}
+	}
+
+	if p.Rating.Support < 0 || p.Rating.Support > 5 {
+		return &validation.ValidationError{
+			Error:      "Support rating must be between 0 and 5",
+			ErrorField: "rating.support",
+		}
+	}
+
+	if len(p.Rating.Purpose) == 0 {
+		return &validation.ValidationError{
+			Error:      "Purpose array cannot be empty",
+			ErrorField: "rating.purpose",
+		}
+	}
+
+	// Validate purpose array - check for empty strings
+	for i, purpose := range p.Rating.Purpose {
+		if strings.TrimSpace(purpose) == "" && len(p.Rating.Purpose) == 1 {
+			// Allow single empty string as default
+			continue
+		}
+		if strings.TrimSpace(purpose) == "" {
+			return &validation.ValidationError{
+				Error:      fmt.Sprintf("Purpose at index %d cannot be empty", i),
+				ErrorField: "rating.purpose",
+			}
 		}
 	}
 

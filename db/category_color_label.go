@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 
@@ -117,6 +118,16 @@ func FetchCategoryColorLabelByColumnAndValue(columnName, categoryValue string) (
 		&label.NamaKolom, &label.Keterangan, &label.TanggalUpdate,
 	)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			defaultColor := models.CategoryColorLabel{
+				ID:         0,
+				KodeWarna:  "#90ee90",
+				NamaWarna:  "Default",
+				NamaKolom:  "default",
+				Keterangan: "Default",
+			}
+			return &defaultColor, nil
+		}
 		return nil, err
 	}
 

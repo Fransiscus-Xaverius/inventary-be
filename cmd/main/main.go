@@ -27,6 +27,7 @@ func printSeedHelp() {
 	fmt.Println("  kats                  - Populates master_kats table with common categories in Bahasa Indonesia")
 	fmt.Println("  genders               - Populates master_genders table with common genders in Bahasa Indonesia")
 	fmt.Println("  tipes                 - Populates master_tipes table with common types in Bahasa Indonesia")
+	fmt.Println("  banners               - Populates banners table with common banners in Bahasa Indonesia")
 	fmt.Println("  category_color_labels - Adds color labels for category attributes")
 	fmt.Println("  products              - Adds/updates 1000 sample products in master_products table")
 	fmt.Println("\nExamples:")

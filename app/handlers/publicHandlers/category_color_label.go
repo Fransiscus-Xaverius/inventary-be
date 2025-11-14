@@ -1,9 +1,10 @@
-package handlers
+package publicHandlers
 
 import (
 	"database/sql"
 	"net/http"
 
+	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
 )
@@ -13,12 +14,12 @@ func GetAllCategoryColorLabels(c *gin.Context) {
 	// Fetch all category color labels from the database
 	categoryColorLabels, err := db.FetchAllCategoryColorLabels()
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch category category color labels: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch category category color labels: "+err.Error(), nil)
 		return
 	}
 
 	// Return the category color labels
-	sendSuccess(c, http.StatusOK, categoryColorLabels)
+	handlers.SendSuccess(c, http.StatusOK, categoryColorLabels)
 }
 
 // GetCategoryColorLabelsByColumn retrieves category color labels for a specific column
@@ -28,12 +29,12 @@ func GetCategoryColorLabelsByColumn(c *gin.Context) {
 	// Fetch category color labels for the specified column from the database
 	categoryColorLabels, err := db.FetchCategoryColorLabelsByColumn(columnName)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch category category color labels: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch category category color labels: "+err.Error(), nil)
 		return
 	}
 
 	// Return the category color labels
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"column":                columnName,
 		"category_color_labels": categoryColorLabels,
 	})
@@ -48,13 +49,13 @@ func GetCategoryColorLabelByColumnAndValue(c *gin.Context) {
 	categoryColorLabel, err := db.FetchCategoryColorLabelByColumnAndValue(columnName, categoryValue)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			sendError(c, http.StatusNotFound, "Category color label not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Category color label not found", nil)
 			return
 		}
-		sendError(c, http.StatusInternalServerError, "Failed to fetch category color label: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch category color label: "+err.Error(), nil)
 		return
 	}
 
 	// Return the category color label
-	sendSuccess(c, http.StatusOK, categoryColorLabel)
+	handlers.SendSuccess(c, http.StatusOK, categoryColorLabel)
 }

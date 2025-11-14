@@ -1,13 +1,13 @@
-package handlers
+package publicHandlers
 
 import (
 	"log"
 	"net/http"
 	"strings"
-	
-	"github.com/gin-gonic/gin"
+
 	"github.com/everysoft/inventary-be/app/auth"
 	"github.com/everysoft/inventary-be/db"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -90,9 +90,9 @@ func RegisterHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"token": token,
+		"token":      token,
 		"expires_at": expiresAt,
-		"user": user,
+		"user":       user,
 	})
 }
 
@@ -148,9 +148,9 @@ func LoginHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
+		"token":      token,
 		"expires_at": expiresAt,
-		"user": user,
+		"user":       user,
 	})
 }
 

@@ -2,9 +2,13 @@
 -- This seeder will add 1000 sample products
 
 -- Create the table if it doesn't exist
+DROP TABLE IF EXISTS master_products;
 CREATE TABLE IF NOT EXISTS master_products (
     no SERIAL PRIMARY KEY,
     artikel TEXT NOT NULL,
+    nama TEXT,
+    deskripsi TEXT,
+    rating JSONB,
     warna TEXT,
     size TEXT,
     grup TEXT,
@@ -14,6 +18,10 @@ CREATE TABLE IF NOT EXISTS master_products (
     gender TEXT,
     tipe TEXT,
     harga NUMERIC(15,2),
+    harga_diskon NUMERIC(15, 2),
+    marketplace JSONB,
+    offline JSONB,
+    gambar TEXT[],
     tanggal_produk DATE,
     tanggal_terima DATE,
     status TEXT,
@@ -26,6 +34,7 @@ CREATE TABLE IF NOT EXISTS master_products (
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);
 CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);
+CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);
 
 -- Add unique constraint if it doesn't exist
 DO $$
@@ -72,6 +81,19 @@ DECLARE
     random_kat TEXT;
     random_gender TEXT;
     random_tipe TEXT;
+
+    nama_list TEXT[];
+    deskripsi_list TEXT[];
+    nama_count INTEGER;
+    deskripsi_count INTEGER;
+    random_nama TEXT;
+    random_deskripsi TEXT;
+
+    marketplace JSONB;
+    offlineList JSONB[];
+    offlineListCount INTEGER;
+    randomOfflineListCount INTEGER;
+    randomOfflineList JSONB;
 BEGIN
     -- Get all color IDs from master_colors table
     SELECT ARRAY_AGG(id) INTO color_ids FROM master_colors WHERE tanggal_hapus IS NULL;
@@ -168,14 +190,83 @@ BEGIN
         random_kat := kat_values[floor(random()*kat_count + 1)];
         random_gender := gender_values[floor(random()*gender_count + 1)];
         random_tipe := tipe_values[floor(random()*tipe_count + 1)];
-        
+
+        -- Define nama and deskripsi list
+        nama_list := ARRAY['Jogging Shoes','Running Shoes','Walking Shoes','Casual Shoes','Formal Shoes','Sports Shoes','Sandals','Flip Flops'];
+        deskripsi_list := ARRAY['Lightweight and comfortable for everyday use','Perfect for running and jogging','Great for walking and casual wear','Stylish and elegant for formal occasions','Versatile for sports and outdoor activities','Comfortable for sports and fitness','Lightweight and comfortable for everyday use','Perfect for running and jogging'];
+
+        -- Select random nama and deskripsi
+        nama_count := array_length(nama_list, 1);
+        deskripsi_count := array_length(deskripsi_list, 1);
+        random_nama := nama_list[floor(random()*nama_count + 1)];
+        random_deskripsi := deskripsi_list[floor(random()*deskripsi_count + 1)];
+
+        -- Generate random marketplace values
+        marketplace := json_build_object(
+            'tokopedia', 'https://www.tokopedia.com/everysoft/product-id',
+            'shopee', 'https://shopee.co.id/everysoft/product-id',
+            'lazada', 'https://www.lazada.co.id/everysoft/product-id',
+            'tiktok', 'https://www.tiktok.com/everysoft/product-id',
+            'bukalapak', 'https://www.bukalapak.com/everysoft/product-id'
+        );
+
+        -- Generate random offline values        
+        offlineList := ARRAY[
+            json_build_object(
+                'name', 'Matahari',
+                'url', 'https://maps.google.com/maps?q=Matahari',
+                'address', 'Jl. Raya Jakarta No. 123',
+                'is_active', true
+            ),
+            json_build_object(
+                'name', 'YK Jakarta',
+                'url', 'https://maps.google.com/maps?q=YK Jakarta',
+                'address', 'Jl. Raya Jakarta No. 123',
+                'is_active', true
+            ),
+            json_build_object(
+                'name', 'YK Bandung',
+                'url', 'https://maps.google.com/maps?q=YK Bandung',
+                'address', 'Jl. Raya Jakarta No. 123',
+                'is_active', true
+            )
+        ];
+
+        -- Select random numbers of offline stores
+        offlineListCount := array_length(offlineList, 1);
+        randomOfflineListCount := floor(random()*offlineListCount + 1)::int;
+
+        -- Select more than 1 offline stores
+        randomOfflineList := jsonb_build_array();
+        FOR i IN 1..randomOfflineListCount LOOP
+            randomOfflineList := randomOfflineList || offlineList[floor(random()*offlineListCount + 1)];
+        END LOOP;
+
         -- Insert product with random values
         INSERT INTO master_products (
-            artikel, warna, size, grup, unit, kat, model, gender, 
-            tipe, harga, tanggal_produk, tanggal_terima, 
+            artikel, nama, deskripsi, rating, warna, size, grup, unit, kat, model, gender, 
+            tipe, harga, harga_diskon, marketplace, offline, gambar, tanggal_produk, tanggal_terima, 
             status, supplier, diupdate_oleh, tanggal_update
         ) VALUES (
             'ART-' || LPAD(CAST(product_id AS TEXT), 6, '0'),
+            random_nama,
+            random_deskripsi,
+            jsonb_build_object(
+                'comfort', floor(random()*6)::int,
+                'style', floor(random()*6)::int,
+                'support', floor(random()*6)::int,
+                'purpose', CASE 
+                    -- 70% chance of single purpose
+                    WHEN random() < 0.7 THEN jsonb_build_array(
+                        (ARRAY['casual', 'formal', 'sport', 'outdoor', 'work', 'party', 'daily', 'running', 'walking', 'hiking', 'business', 'travel', 'gym', 'beach', 'winter'])[floor(random()*15 + 1)]
+                    )
+                    -- 30% chance of multiple purposes (2-3 purposes)
+                    ELSE jsonb_build_array(
+                        (ARRAY['casual', 'formal', 'sport', 'outdoor', 'work', 'party', 'daily', 'running', 'walking', 'hiking', 'business', 'travel', 'gym', 'beach', 'winter'])[floor(random()*15 + 1)],
+                        (ARRAY['casual', 'formal', 'sport', 'outdoor', 'work', 'party', 'daily', 'running', 'walking', 'hiking', 'business', 'travel', 'gym', 'beach', 'winter'])[floor(random()*15 + 1)]
+                    )
+                END
+            ),
             color_list,
             size_list,
             random_grup,
@@ -185,6 +276,10 @@ BEGIN
             random_gender,
             random_tipe,
             floor(random()*(1000000-50000 + 1) + 50000)::numeric(15,2),
+            floor(random()*(500000-40000 + 1))::numeric(15,2),
+            marketplace,
+            randomOfflineList,
+            ARRAY['/uploads/products/1.png', '/uploads/products/2.png', '/uploads/products/3.png'],
             CURRENT_DATE - (floor(random()*365)::int || ' days')::interval,
             CURRENT_DATE - (floor(random()*1000)::int || ' days')::interval,
             (ARRAY['Active', 'Inactive', 'Discontinued'])[floor(random()*3 + 1)],

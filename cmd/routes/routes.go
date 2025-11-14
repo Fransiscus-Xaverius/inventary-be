@@ -4,13 +4,20 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/everysoft/inventary-be/app/handlers"
+	"github.com/everysoft/inventary-be/app/handlers/adminHandlers"
+	"github.com/everysoft/inventary-be/app/handlers/publicHandlers"
 	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes configures all API routes
 func SetupRoutes() *gin.Engine {
 	router := gin.Default()
+
+	// Set a higher limit for multipart forms (e.g., 8MB)
+	router.MaxMultipartMemory = 100 << 20 // 100MB
+
+	// Serve static files from the 'uploads' directory
+	router.Static("/uploads", "uploads")
 
 	// Better CORS middleware configuration
 	router.Use(CORSMiddleware())
@@ -20,128 +27,192 @@ func SetupRoutes() *gin.Engine {
 	{
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", handlers.RegisterHandler) // You'll need to update these handler functions
-			auth.POST("/login", handlers.LoginHandler)       // to use gin.Context instead of http.HandlerFunc
+			auth.POST("/register", publicHandlers.RegisterHandler) // You'll need to update these handler functions
+			auth.POST("/login", publicHandlers.LoginHandler)       // to use gin.Context instead of http.HandlerFunc
 		}
 
 		/**
-		 * Protected routes
-		 * These routes require authentication
+		 * Public routes
+		 */
+		api.GET("/filters", publicHandlers.GetFilterOptions)
+		api.GET("/category-colors", publicHandlers.GetAllCategoryColorLabels)
+		api.GET("/category-colors/:column", publicHandlers.GetCategoryColorLabelsByColumn)
+		api.GET("/category-colors/:column/:value", publicHandlers.GetCategoryColorLabelByColumnAndValue)
+
+		/**
+		 * Products routes
 		 */
 		products := api.Group("/products")
 		{
-			products.GET("/", handlers.GetAllProducts)
-			products.POST("/", handlers.CreateProduct)
-			products.GET("/deleted", handlers.GetDeletedProducts) // Route for fetching deleted products
-			products.GET("/:artikel", handlers.GetProductByArtikel)
-			products.PUT("/:artikel", handlers.UpdateProduct)
-			products.DELETE("/:artikel", handlers.DeleteProduct)
-			products.POST("/restore/:artikel", handlers.RestoreProduct) // Route for restoring deleted products
+			products.GET("", publicHandlers.GetAllProducts)
+			products.GET("/:artikel", publicHandlers.GetProductByArtikel)
 		}
 
 		/**
-		 * Master Colors routes
+		 * Banners routes
+		 * These routes require authentication for management, but public for fetching active banners
+		 */
+		banners := api.Group("/banners")
+		{
+			banners.GET("/active", publicHandlers.GetActiveBanners) // Public endpoint for active banners
+		}
+
+		/**
+		 * Newsletter routes
+		 */
+		api.POST("/newsletter", publicHandlers.SubscribeToNewsletter)
+
+		/**
+		 * Admin routes
 		 * These routes require authentication
 		 */
-		colors := api.Group("/colors")
-		colors.Use(AuthMiddleware())
+		admin := api.Group("/admin")
+		admin.Use(AuthMiddleware())
 		{
-			colors.GET("/", handlers.GetAllColors)
-			colors.POST("/", handlers.CreateColor)
-			colors.GET("/deleted", handlers.GetDeletedColors)
-			colors.GET("/:id", handlers.GetColorByID)
-			colors.PUT("/:id", handlers.UpdateColor)
-			colors.DELETE("/:id", handlers.DeleteColor)
-			colors.POST("/restore/:id", handlers.RestoreColor)
-		}
+			/**
+			 * Master Products routes
+			 * These routes require authentication
+			 */
+			productsProtected := admin.Group("/products")
+			{
+				productsProtected.GET("", adminHandlers.GetAllProducts)
+				productsProtected.POST("", adminHandlers.CreateProduct)
+				productsProtected.GET("/deleted", adminHandlers.GetDeletedProducts) // Route for fetching deleted products
+				productsProtected.GET("/:artikel", adminHandlers.GetProductByArtikel)
+				productsProtected.PUT("/:artikel", adminHandlers.UpdateProduct)
+				productsProtected.DELETE("/:artikel", adminHandlers.DeleteProduct)
+				productsProtected.POST("/restore/:artikel", adminHandlers.RestoreProduct) // Route for restoring deleted products
+			}
 
-		/**
-		 * Master Grup routes
-		 * These routes require authentication
-		 */
-		grups := api.Group("/grups")
-		grups.Use(AuthMiddleware())
-		{
-			grups.GET("/", handlers.GetAllGrups)
-			grups.POST("/", handlers.CreateGrup)
-			grups.GET("/deleted", handlers.GetDeletedGrups)
-			grups.GET("/:id", handlers.GetGrupByID)
-			grups.PUT("/:id", handlers.UpdateGrup)
-			grups.DELETE("/:id", handlers.DeleteGrup)
-			grups.POST("/restore/:id", handlers.RestoreGrup)
-		}
+			/**
+			 * Master Colors routes
+			 * These routes require authentication
+			 */
+			colorsProtected := admin.Group("/colors")
+			{
+				colorsProtected.GET("", adminHandlers.GetAllColors)
+				colorsProtected.POST("", adminHandlers.CreateColor)
+				colorsProtected.GET("/deleted", adminHandlers.GetDeletedColors)
+				colorsProtected.GET("/:id", adminHandlers.GetColorByID)
+				colorsProtected.PUT("/:id", adminHandlers.UpdateColor)
+				colorsProtected.DELETE("/:id", adminHandlers.DeleteColor)
+				colorsProtected.POST("/restore/:id", adminHandlers.RestoreColor)
+			}
 
-		/**
-		 * Master Unit routes
-		 * These routes require authentication
-		 */
-		units := api.Group("/units")
-		units.Use(AuthMiddleware())
-		{
-			units.GET("/", handlers.GetAllUnits)
-			units.POST("/", handlers.CreateUnit)
-			units.GET("/deleted", handlers.GetDeletedUnits)
-			units.GET("/:id", handlers.GetUnitByID)
-			units.PUT("/:id", handlers.UpdateUnit)
-			units.DELETE("/:id", handlers.DeleteUnit)
-			units.POST("/restore/:id", handlers.RestoreUnit)
-		}
+			/**
+			 * Master Grup routes
+			 * These routes require authentication
+			 */
+			grupsProtected := admin.Group("/grups")
+			{
+				grupsProtected.GET("", adminHandlers.GetAllGrups)
+				grupsProtected.POST("", adminHandlers.CreateGrup)
+				grupsProtected.GET("/deleted", adminHandlers.GetDeletedGrups)
+				grupsProtected.GET("/:id", adminHandlers.GetGrupByID)
+				grupsProtected.PUT("/:id", adminHandlers.UpdateGrup)
+				grupsProtected.DELETE("/:id", adminHandlers.DeleteGrup)
+				grupsProtected.POST("/restore/:id", adminHandlers.RestoreGrup)
+			}
 
-		/**
-		 * Master Kat routes
-		 * These routes require authentication
-		 */
-		kats := api.Group("/kats")
-		kats.Use(AuthMiddleware())
-		{
-			kats.GET("/", handlers.GetAllKats)
-			kats.POST("/", handlers.CreateKat)
-			kats.GET("/deleted", handlers.GetDeletedKats)
-			kats.GET("/:id", handlers.GetKatByID)
-			kats.PUT("/:id", handlers.UpdateKat)
-			kats.DELETE("/:id", handlers.DeleteKat)
-			kats.POST("/restore/:id", handlers.RestoreKat)
-		}
+			/**
+			 * Master Unit routes
+			 * These routes require authentication
+			 */
+			unitsProtected := admin.Group("/units")
+			{
+				unitsProtected.GET("", adminHandlers.GetAllUnits)
+				unitsProtected.POST("", adminHandlers.CreateUnit)
+				unitsProtected.GET("/deleted", adminHandlers.GetDeletedUnits)
+				unitsProtected.GET("/:id", adminHandlers.GetUnitByID)
+				unitsProtected.PUT("/:id", adminHandlers.UpdateUnit)
+				unitsProtected.DELETE("/:id", adminHandlers.DeleteUnit)
+				unitsProtected.POST("/restore/:id", adminHandlers.RestoreUnit)
+			}
 
-		/**
-		 * Master Gender routes
-		 * These routes require authentication
-		 */
-		genders := api.Group("/genders")
-		genders.Use(AuthMiddleware())
-		{
-			genders.GET("/", handlers.GetAllGenders)
-			genders.POST("/", handlers.CreateGender)
-			genders.GET("/deleted", handlers.GetDeletedGenders)
-			genders.GET("/:id", handlers.GetGenderByID)
-			genders.PUT("/:id", handlers.UpdateGender)
-			genders.DELETE("/:id", handlers.DeleteGender)
-			genders.POST("/restore/:id", handlers.RestoreGender)
-		}
+			/**
+			 * Master Kat routes
+			 * These routes require authentication
+			 */
+			katsProtected := admin.Group("/kats")
+			{
+				katsProtected.GET("", adminHandlers.GetAllKats)
+				katsProtected.POST("", adminHandlers.CreateKat)
+				katsProtected.GET("/deleted", adminHandlers.GetDeletedKats)
+				katsProtected.GET("/:id", adminHandlers.GetKatByID)
+				katsProtected.PUT("/:id", adminHandlers.UpdateKat)
+				katsProtected.DELETE("/:id", adminHandlers.DeleteKat)
+				katsProtected.POST("/restore/:id", adminHandlers.RestoreKat)
+			}
 
-		/**
-		 * Master Tipe routes
-		 * These routes require authentication
-		 */
-		tipes := api.Group("/tipes")
-		tipes.Use(AuthMiddleware())
-		{
-			tipes.GET("/", handlers.GetAllTipes)
-			tipes.POST("/", handlers.CreateTipe)
-			tipes.GET("/deleted", handlers.GetDeletedTipes)
-			tipes.GET("/:id", handlers.GetTipeByID)
-			tipes.PUT("/:id", handlers.UpdateTipe)
-			tipes.DELETE("/:id", handlers.DeleteTipe)
-			tipes.POST("/restore/:id", handlers.RestoreTipe)
-		}
+			/**
+			 * Master Gender routes
+			 * These routes require authentication
+			 */
+			gendersProtected := admin.Group("/genders")
+			{
+				gendersProtected.GET("", adminHandlers.GetAllGenders)
+				gendersProtected.POST("", adminHandlers.CreateGender)
+				gendersProtected.GET("/deleted", adminHandlers.GetDeletedGenders)
+				gendersProtected.GET("/:id", adminHandlers.GetGenderByID)
+				gendersProtected.PUT("/:id", adminHandlers.UpdateGender)
+				gendersProtected.DELETE("/:id", adminHandlers.DeleteGender)
+				gendersProtected.POST("/restore/:id", adminHandlers.RestoreGender)
+			}
 
-		/**
-		 * Accessible without authentication
-		 */
-		api.GET("/filters", handlers.GetFilterOptions)
-		api.GET("/category-colors", handlers.GetAllCategoryColorLabels)
-		api.GET("/category-colors/:column", handlers.GetCategoryColorLabelsByColumn)
-		api.GET("/category-colors/:column/:value", handlers.GetCategoryColorLabelByColumnAndValue)
+			/**
+			 * Master Tipe routes
+			 * These routes require authentication
+			 */
+			tipesProtected := admin.Group("/tipes")
+			{
+				tipesProtected.GET("", adminHandlers.GetAllTipes)
+				tipesProtected.POST("", adminHandlers.CreateTipe)
+				tipesProtected.GET("/deleted", adminHandlers.GetDeletedTipes)
+				tipesProtected.GET("/:id", adminHandlers.GetTipeByID)
+				tipesProtected.PUT("/:id", adminHandlers.UpdateTipe)
+				tipesProtected.DELETE("/:id", adminHandlers.DeleteTipe)
+				tipesProtected.POST("/restore/:id", adminHandlers.RestoreTipe)
+			}
+
+			/**
+			 * Master Banners routes
+			 * These routes require authentication
+			 */
+			bannersProtected := admin.Group("/banners")
+			{
+				bannersProtected.GET("", adminHandlers.GetAllBanners)
+				bannersProtected.POST("", adminHandlers.CreateBanner)
+				bannersProtected.GET("/deleted", adminHandlers.GetDeletedBanners)
+				bannersProtected.GET("/:id", adminHandlers.GetBannerByID)
+				bannersProtected.PUT("/:id", adminHandlers.UpdateBanner)
+				bannersProtected.DELETE("/:id", adminHandlers.DeleteBanner)
+				bannersProtected.POST("/restore/:id", adminHandlers.RestoreBanner)
+			}
+
+			/**
+			 * Panduan Ukuran routes
+			 * These routes require authentication
+			 */
+			panduanUkuranProtected := admin.Group("/panduan-ukuran")
+			{
+				panduanUkuranProtected.POST("", adminHandlers.UploadPanduanUkuran)
+				panduanUkuranProtected.DELETE("", adminHandlers.DeletePanduanUkuran)
+			}
+
+			/**
+			 * Master Newsletter routes
+			 * These routes require authentication
+			 */
+			newslettersProtected := admin.Group("/newsletters")
+			{
+				newslettersProtected.GET("", adminHandlers.GetAllNewsletters)
+				newslettersProtected.GET("/deleted", adminHandlers.GetDeletedNewsletters)
+				newslettersProtected.GET("/:id", adminHandlers.GetNewsletterByID)
+				newslettersProtected.PUT("/:id", adminHandlers.UpdateNewsletter)
+				newslettersProtected.DELETE("/:id", adminHandlers.DeleteNewsletter)
+				newslettersProtected.POST("/restore/:id", adminHandlers.RestoreNewsletter)
+			}
+		}
 	}
 
 	return router
@@ -153,6 +224,8 @@ func CORSMiddleware() gin.HandlerFunc {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Multipart", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
@@ -205,8 +278,8 @@ func CreateServer(port string, handler *gin.Engine) *http.Server {
 	return &http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 }

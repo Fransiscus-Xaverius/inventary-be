@@ -26,17 +26,20 @@ type PaginatedData struct {
 	Order      string      `json:"order,omitempty"`
 }
 
-// sendError sends a standardized error response
-func sendError(c *gin.Context, statusCode int, message string, errorField *string) {
-	c.JSON(statusCode, APIResponse{
-		Success:    false,
-		Error:      message,
-		ErrorField: *errorField,
-	})
+// SendError sends a standardized error response
+func SendError(c *gin.Context, statusCode int, message string, errorField *string) {
+	response := APIResponse{
+		Success: false,
+		Error:   message,
+	}
+	if errorField != nil {
+		response.ErrorField = *errorField
+	}
+	c.JSON(statusCode, response)
 }
 
-// sendSuccess sends a standardized success response
-func sendSuccess(c *gin.Context, statusCode int, data interface{}) {
+// SendSuccess sends a standardized success response
+func SendSuccess(c *gin.Context, statusCode int, data interface{}) {
 	c.JSON(statusCode, APIResponse{
 		Success: true,
 		Data:    data,

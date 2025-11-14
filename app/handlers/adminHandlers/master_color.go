@@ -1,4 +1,4 @@
-package handlers
+package adminHandlers
 
 import (
 	"math"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/app/models"
 	"github.com/everysoft/inventary-be/db"
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,7 @@ func GetAllColors(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -34,7 +35,7 @@ func GetAllColors(c *gin.Context) {
 	// Fetch total count with search term applied
 	totalCount, err := db.CountAllColors(queryStr)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count colors", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count colors", nil)
 		return
 	}
 
@@ -44,12 +45,12 @@ func GetAllColors(c *gin.Context) {
 	// Fetch paginated colors with search term applied
 	colors, err := db.FetchAllColors(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch colors", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch colors", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"colors":     colors,
 		"page":       page,
 		"total_page": totalPages,
@@ -64,34 +65,34 @@ func GetColorByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	color, err := db.FetchColorByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Color not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Color not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch color", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch color", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, color)
+	handlers.SendSuccess(c, http.StatusOK, color)
 }
 
 // CreateColor handles creating a new color
 func CreateColor(c *gin.Context) {
 	var color models.Color
 	if err := c.ShouldBindJSON(&color); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	// Validate required fields
 	if color.Nama == "" {
-		sendError(c, http.StatusBadRequest, "Color name is required", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Color name is required", nil)
 		return
 	}
 
@@ -101,11 +102,11 @@ func CreateColor(c *gin.Context) {
 	// Insert to database
 	err := db.InsertColor(&color)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to create color: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to create color: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusCreated, color)
+	handlers.SendSuccess(c, http.StatusCreated, color)
 }
 
 // UpdateColor handles updating an existing color
@@ -113,7 +114,7 @@ func UpdateColor(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
@@ -121,9 +122,9 @@ func UpdateColor(c *gin.Context) {
 	existingColor, err := db.FetchColorByID(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Color not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Color not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to fetch existing color", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch existing color", nil)
 		}
 		return
 	}
@@ -131,7 +132,7 @@ func UpdateColor(c *gin.Context) {
 	// Create a map to hold the raw JSON request body
 	var requestBody map[string]interface{}
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		sendError(c, http.StatusBadRequest, err.Error(), nil)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
@@ -153,11 +154,11 @@ func UpdateColor(c *gin.Context) {
 	// Perform the update operation
 	updatedColor, err := db.UpdateColor(id, &colorToUpdate)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to update color: "+err.Error(), nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to update color: "+err.Error(), nil)
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, updatedColor)
+	handlers.SendSuccess(c, http.StatusOK, updatedColor)
 }
 
 // DeleteColor handles soft-deleting a color
@@ -165,21 +166,21 @@ func DeleteColor(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.DeleteColor(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Color not found", nil)
+			handlers.SendError(c, http.StatusNotFound, "Color not found", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to delete color", nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to delete color", nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Color deleted successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Color deleted successfully"})
 }
 
 // GetDeletedColors retrieves all soft-deleted colors with pagination
@@ -195,7 +196,7 @@ func GetDeletedColors(c *gin.Context) {
 	offset, err2 := strconv.Atoi(offsetStr)
 
 	if err1 != nil || err2 != nil || limit < 1 || offset < 0 {
-		sendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid pagination parameters", nil)
 		return
 	}
 
@@ -205,7 +206,7 @@ func GetDeletedColors(c *gin.Context) {
 	// Fetch total count with filters applied
 	totalCount, err := db.CountDeletedColors(queryStr)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to count deleted colors", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to count deleted colors", nil)
 		return
 	}
 
@@ -215,12 +216,12 @@ func GetDeletedColors(c *gin.Context) {
 	// Fetch paginated deleted colors with filters applied
 	colors, err := db.FetchDeletedColors(limit, offset, queryStr, sortColumn, sortDirection)
 	if err != nil {
-		sendError(c, http.StatusInternalServerError, "Failed to fetch deleted colors", nil)
+		handlers.SendError(c, http.StatusInternalServerError, "Failed to fetch deleted colors", nil)
 		return
 	}
 
 	// Respond with pagination metadata
-	sendSuccess(c, http.StatusOK, gin.H{
+	handlers.SendSuccess(c, http.StatusOK, gin.H{
 		"colors":     colors,
 		"page":       page,
 		"total_page": totalPages,
@@ -235,19 +236,19 @@ func RestoreColor(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		sendError(c, http.StatusBadRequest, "Invalid ID format", nil)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid ID format", nil)
 		return
 	}
 
 	err = db.RestoreColor(id)
 	if err != nil {
 		if err.Error() == "not_found" {
-			sendError(c, http.StatusNotFound, "Color not found or already active", nil)
+			handlers.SendError(c, http.StatusNotFound, "Color not found or already active", nil)
 		} else {
-			sendError(c, http.StatusInternalServerError, "Failed to restore color: "+err.Error(), nil)
+			handlers.SendError(c, http.StatusInternalServerError, "Failed to restore color: "+err.Error(), nil)
 		}
 		return
 	}
 
-	sendSuccess(c, http.StatusOK, gin.H{"message": "Color restored successfully"})
+	handlers.SendSuccess(c, http.StatusOK, gin.H{"message": "Color restored successfully"})
 }
