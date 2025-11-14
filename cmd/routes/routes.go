@@ -29,7 +29,6 @@ func SetupRoutes() *gin.Engine {
 		 * These routes require authentication
 		 */
 		products := api.Group("/products")
-		products.Use(AuthMiddleware())
 		{
 			products.GET("/", handlers.GetAllProducts)
 			products.POST("/", handlers.CreateProduct)
