@@ -10,10 +10,7 @@ import (
 
 // SetupRoutes configures all API routes
 func SetupRoutes() *gin.Engine {
-	router := gin.New()
-	router.RedirectTrailingSlash = false
-	router.RedirectFixedPath = false
-	router.HandleMethodNotAllowed = true
+	router := gin.Default()
 
 	// Better CORS middleware configuration
 	router.Use(CORSMiddleware())
