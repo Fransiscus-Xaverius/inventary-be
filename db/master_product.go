@@ -72,10 +72,13 @@ func CountAllProducts(queryStr string, filters map[string]string, isMarketplaceF
 
 	// Handle marketplace and offline filters
 	if isMarketplaceFilter {
-		baseQuery += ` AND marketplace IS NOT NULL AND marketplace != '{}'`
+		baseQuery += ` AND marketplace IS NOT NULL AND jsonb_typeof(marketplace) = 'object' AND EXISTS (
+			SELECT 1 FROM jsonb_each_text(marketplace) kv
+			WHERE trim(kv.value) <> ''
+		)`
 	}
 	if isOfflineFilter {
-		baseQuery += ` AND offline IS NOT NULL AND offline != '{}'`
+		baseQuery += ` AND offline IS NOT NULL AND jsonb_typeof(offline) = 'array' AND jsonb_array_length(offline) > 0`
 	}
 
 	var count int
@@ -228,10 +231,13 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 
 	// Handle marketplace and offline filters
 	if isMarketplaceFilter {
-		baseQuery += ` AND marketplace IS NOT NULL AND marketplace != '{}'`
+		baseQuery += ` AND marketplace IS NOT NULL AND jsonb_typeof(marketplace) = 'object' AND EXISTS (
+			SELECT 1 FROM jsonb_each_text(marketplace) kv
+			WHERE trim(kv.value) <> ''
+		)`
 	}
 	if isOfflineFilter {
-		baseQuery += ` AND offline IS NOT NULL AND offline != '{}'`
+		baseQuery += ` AND offline IS NOT NULL AND jsonb_typeof(offline) = 'array' AND jsonb_array_length(offline) > 0`
 	}
 
 	// Add sorting
