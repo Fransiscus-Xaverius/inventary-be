@@ -74,11 +74,22 @@ func CountAllProducts(queryStr string, filters map[string]string, isMarketplaceF
 	if isMarketplaceFilter {
 		baseQuery += ` AND marketplace IS NOT NULL AND jsonb_typeof(marketplace) = 'object' AND EXISTS (
 			SELECT 1 FROM jsonb_each_text(marketplace) kv
-			WHERE trim(kv.value) <> ''
+			WHERE kv.value IS NOT NULL
+				AND trim(kv.value) <> ''
+				AND lower(trim(kv.value)) NOT IN ('-', '#', 'na', 'n/a')
 		)`
 	}
 	if isOfflineFilter {
-		baseQuery += ` AND offline IS NOT NULL AND jsonb_typeof(offline) = 'array' AND jsonb_array_length(offline) > 0`
+		baseQuery += ` AND offline IS NOT NULL AND jsonb_typeof(offline) = 'array' AND EXISTS (
+			SELECT 1 FROM jsonb_array_elements(offline) AS store
+			WHERE store IS NOT NULL
+				AND trim(COALESCE(store->>'url', '')) <> ''
+				AND lower(trim(COALESCE(store->>'url', ''))) NOT IN ('-', '#', 'na', 'n/a')
+				AND (
+					store->>'is_active' IS NULL
+					OR lower(store->>'is_active') IN ('true', '1', 'yes', 'on')
+				)
+		)`
 	}
 
 	var count int
@@ -233,11 +244,22 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	if isMarketplaceFilter {
 		baseQuery += ` AND marketplace IS NOT NULL AND jsonb_typeof(marketplace) = 'object' AND EXISTS (
 			SELECT 1 FROM jsonb_each_text(marketplace) kv
-			WHERE trim(kv.value) <> ''
+			WHERE kv.value IS NOT NULL
+				AND trim(kv.value) <> ''
+				AND lower(trim(kv.value)) NOT IN ('-', '#', 'na', 'n/a')
 		)`
 	}
 	if isOfflineFilter {
-		baseQuery += ` AND offline IS NOT NULL AND jsonb_typeof(offline) = 'array' AND jsonb_array_length(offline) > 0`
+		baseQuery += ` AND offline IS NOT NULL AND jsonb_typeof(offline) = 'array' AND EXISTS (
+			SELECT 1 FROM jsonb_array_elements(offline) AS store
+			WHERE store IS NOT NULL
+				AND trim(COALESCE(store->>'url', '')) <> ''
+				AND lower(trim(COALESCE(store->>'url', ''))) NOT IN ('-', '#', 'na', 'n/a')
+				AND (
+					store->>'is_active' IS NULL
+					OR lower(store->>'is_active') IN ('true', '1', 'yes', 'on')
+				)
+		)`
 	}
 
 	// Add sorting
