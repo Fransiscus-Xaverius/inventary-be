@@ -3,6 +3,7 @@ package helpers
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,4 +37,22 @@ func ExtractFilters(c *gin.Context) map[string]string {
 		}
 	}
 	return filters
+}
+
+// QueryBool interprets a boolean-like query parameter supporting multiple truthy formats
+func QueryBool(c *gin.Context, key string) bool {
+	value, exists := c.GetQuery(key)
+	if !exists {
+		return false
+	}
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	if trimmed == "" {
+		return true
+	}
+	switch trimmed {
+	case "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

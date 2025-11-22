@@ -55,9 +55,9 @@ func GetAllProducts(c *gin.Context) {
 	// Extract filter parameters
 	filters := helpers.ExtractFilters(c)
 
-	// Extract marketplace and offline filters
-	isMarketplaceFilter := strings.Contains(c.Request.URL.RawQuery, "online")
-	isOfflineFilter := strings.Contains(c.Request.URL.RawQuery, "offline")
+	// Extract marketplace and offline filters using helper that understands multiple truthy values
+	isMarketplaceFilter := helpers.QueryBool(c, "online")
+	isOfflineFilter := helpers.QueryBool(c, "offline")
 
 	// Fetch total count with filters applied
 	totalCount, err := db.CountAllProducts(queryStr, filters, isMarketplaceFilter, isOfflineFilter)
