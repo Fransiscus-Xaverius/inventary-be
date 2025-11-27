@@ -20,15 +20,6 @@ func CreateMasterGendersTableIfNotExists() error {
 			tanggal_hapus TIMESTAMPTZ
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_genders_value ON master_genders(value);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_genders_value'
-			) THEN
-				ALTER TABLE master_genders ADD CONSTRAINT uq_master_genders_value UNIQUE (value);
-			END IF;
-		END$$;`,
 	}
 
 	for _, stmt := range statements {

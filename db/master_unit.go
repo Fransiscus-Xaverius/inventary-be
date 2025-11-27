@@ -20,15 +20,7 @@ func CreateMasterUnitsTableIfNotExists() error {
 			tanggal_hapus TIMESTAMPTZ
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_units_value ON master_units(value);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_units_value'
-			) THEN
-				ALTER TABLE master_units ADD CONSTRAINT uq_master_units_value UNIQUE (value);
-			END IF;
-		END$$;`,
+		// Removed UNIQUE constraint creation for 'value' field as uniqueness is no longer required
 	}
 
 	for _, stmt := range statements {

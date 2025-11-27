@@ -20,15 +20,6 @@ func CreateMasterGrupsTableIfNotExists() error {
 			tanggal_hapus TIMESTAMPTZ
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_grups_value ON master_grups(value);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_grups_value'
-			) THEN
-				ALTER TABLE master_grups ADD CONSTRAINT uq_master_grups_value UNIQUE (value);
-			END IF;
-		END$$;`,
 	}
 
 	for _, stmt := range statements {

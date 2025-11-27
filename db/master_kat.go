@@ -20,15 +20,6 @@ func CreateMasterKatsTableIfNotExists() error {
 			tanggal_hapus TIMESTAMPTZ
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_kats_value ON master_kats(value);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_kats_value'
-			) THEN
-				ALTER TABLE master_kats ADD CONSTRAINT uq_master_kats_value UNIQUE (value);
-			END IF;
-		END$$;`,
 	}
 
 	for _, stmt := range statements {
