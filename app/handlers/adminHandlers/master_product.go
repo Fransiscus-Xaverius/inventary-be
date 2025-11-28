@@ -335,10 +335,6 @@ func CreateProduct(c *gin.Context) {
 	err = db.InsertProduct(&product)
 	if err != nil {
 		log.Printf("CreateProduct: Failed to insert product into DB: %v", err)
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-			handlers.SendError(c, http.StatusBadRequest, "Product with this artikel already exists", nil)
-			return
-		}
 		handlers.SendError(c, http.StatusInternalServerError, "Failed to create product: "+err.Error(), nil)
 		return
 	}

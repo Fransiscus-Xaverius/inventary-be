@@ -138,15 +138,6 @@ func CreateMasterProductsTableIfNotExists() error {
 		`CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_products_artikel'
-			) THEN
-				ALTER TABLE master_products ADD CONSTRAINT uq_master_products_artikel UNIQUE (artikel);
-			END IF;
-		END$$;`,
 	}
 
 	for _, stmt := range statements {
