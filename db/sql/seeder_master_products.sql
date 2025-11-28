@@ -137,7 +137,7 @@ BEGIN
     END IF;
     
     IF gender_values IS NULL OR gender_count IS NULL THEN
-        gender_values := ARRAY['Pria', 'Wanita', 'Unisex'];
+        gender_values := ARRAY['Pria', 'Wanita', 'Kids'];
         gender_count := 3;
     END IF;
     

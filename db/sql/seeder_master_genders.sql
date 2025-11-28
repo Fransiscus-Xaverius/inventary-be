@@ -26,7 +26,7 @@ END$$;
 INSERT INTO master_genders (value, tanggal_update) VALUES
 ('Pria', CURRENT_TIMESTAMP),
 ('Wanita', CURRENT_TIMESTAMP),
-('Unisex', CURRENT_TIMESTAMP)
+('Kids', CURRENT_TIMESTAMP)
 ON CONFLICT (value) DO UPDATE
 SET tanggal_update = CURRENT_TIMESTAMP; 
 
