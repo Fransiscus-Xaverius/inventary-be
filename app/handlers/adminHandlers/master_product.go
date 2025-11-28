@@ -88,10 +88,17 @@ func GetAllProducts(c *gin.Context) {
 	})
 }
 
-// GetProductByArtikel handles retrieving a single product by its artikel
-func GetProductByArtikel(c *gin.Context) {
-	artikel := c.Param("artikel")
-	product, err := db.FetchProductByArtikel(artikel)
+// GetProductByID handles retrieving a single product by its ID
+func GetProductByID(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+
+	if err != nil {
+		handlers.SendError(c, http.StatusBadRequest, "Invalid product ID", nil)
+		return
+	}
+
+	product, err := db.FetchProductByID(id)
 
 	if err != nil {
 		if err.Error() == "not_found" {
@@ -348,14 +355,22 @@ func UpdateProduct(c *gin.Context) {
 	log.Println("--------------------------------")
 	log.Println("UpdateProduct: Starting product update process.")
 
-	artikel := c.Param("artikel")
-	log.Printf("UpdateProduct: Artikel parameter: %s", artikel)
+	idParam := c.Param("id")
+	productID, err := strconv.Atoi(idParam)
+
+	if err != nil {
+		log.Printf("UpdateProduct: Invalid ID parameter: %s", idParam)
+		handlers.SendError(c, http.StatusBadRequest, "Invalid product ID", nil)
+		return
+	}
+
+	log.Printf("UpdateProduct: ID parameter: %d", productID)
 
 	// Fetch the existing product first to avoid overwriting with zero values
-	existingProduct, err := db.FetchProductByArtikel(artikel)
+	existingProduct, err := db.FetchProductByID(productID)
 	if err != nil {
 		if err.Error() == "not_found" {
-			log.Printf("UpdateProduct: Product with artikel %s not found", artikel)
+			log.Printf("UpdateProduct: Product with ID %d not found", productID)
 			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
 		} else {
 			log.Printf("UpdateProduct: Error fetching existing product: %v", err)
@@ -789,7 +804,7 @@ func UpdateProduct(c *gin.Context) {
 
 	// Perform the update operation
 	log.Println("UpdateProduct: Attempting to update product in database")
-	updatedProduct, err := db.UpdateProduct(artikel, &productToUpdate)
+	updatedProduct, err := db.UpdateProduct(productID, &productToUpdate)
 	if err != nil {
 		log.Printf("UpdateProduct: Failed to update product in database: %v", err)
 		handlers.SendError(c, http.StatusInternalServerError, "Failed to update product: "+err.Error(), nil)
@@ -803,8 +818,15 @@ func UpdateProduct(c *gin.Context) {
 
 // DeleteProduct handles soft-deleting a product
 func DeleteProduct(c *gin.Context) {
-	artikel := c.Param("artikel")
-	err := db.DeleteProduct(artikel)
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+
+	if err != nil {
+		handlers.SendError(c, http.StatusBadRequest, "Invalid product ID", nil)
+		return
+	}
+
+	err = db.DeleteProduct(id)
 	if err != nil {
 		if err.Error() == "not_found" {
 			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
@@ -865,10 +887,16 @@ func GetDeletedProducts(c *gin.Context) {
 
 // RestoreProduct restores a soft-deleted product
 func RestoreProduct(c *gin.Context) {
-	artikel := c.Param("artikel")
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+
+	if err != nil {
+		handlers.SendError(c, http.StatusBadRequest, "Invalid product ID", nil)
+		return
+	}
 
 	// First check if the product exists and is deleted
-	product, err := db.FetchProductByArtikelIncludeDeleted(artikel)
+	product, err := db.FetchProductByIDIncludeDeleted(id)
 	if err != nil {
 		if err.Error() == "not_found" {
 			handlers.SendError(c, http.StatusNotFound, "Product not found", nil)
@@ -885,7 +913,7 @@ func RestoreProduct(c *gin.Context) {
 	}
 
 	// Restore the product
-	err = db.RestoreProduct(artikel)
+	err = db.RestoreProduct(id)
 	if err != nil {
 		handlers.SendError(c, http.StatusInternalServerError, "Failed to restore product: "+err.Error(), nil)
 		return
