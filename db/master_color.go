@@ -22,15 +22,6 @@ func CreateMasterColorsTableIfNotExists() error {
 			tanggal_hapus TIMESTAMPTZ
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_colors_nama ON master_colors(nama);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_colors_nama'
-			) THEN
-				ALTER TABLE master_colors ADD CONSTRAINT uq_master_colors_nama UNIQUE (nama);
-			END IF;
-		END$$;`,
 		// Add hex column if it doesn't exist (for backward compatibility)
 		`DO $$
 		BEGIN

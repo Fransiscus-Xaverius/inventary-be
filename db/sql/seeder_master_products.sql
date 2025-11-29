@@ -137,7 +137,7 @@ BEGIN
     END IF;
     
     IF gender_values IS NULL OR gender_count IS NULL THEN
-        gender_values := ARRAY['Pria', 'Wanita', 'Unisex'];
+        gender_values := ARRAY['Pria', 'Wanita', 'Kids'];
         gender_count := 3;
     END IF;
     
@@ -308,3 +308,14 @@ BEGIN
         
     RAISE NOTICE 'Added/updated sample products in the master_products table';
 END $$;
+
+-- Remove unique constraint after insertions
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_master_products_artikel'
+    ) THEN
+        ALTER TABLE master_products DROP CONSTRAINT uq_master_products_artikel;
+    END IF;
+END$$;

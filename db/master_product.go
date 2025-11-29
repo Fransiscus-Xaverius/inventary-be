@@ -138,15 +138,6 @@ func CreateMasterProductsTableIfNotExists() error {
 		`CREATE INDEX IF NOT EXISTS idx_master_products_artikel ON master_products(artikel);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_grup ON master_products(grup);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_products_offline ON master_products USING GIN (offline);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_products_artikel'
-			) THEN
-				ALTER TABLE master_products ADD CONSTRAINT uq_master_products_artikel UNIQUE (artikel);
-			END IF;
-		END$$;`,
 	}
 
 	for _, stmt := range statements {
@@ -369,7 +360,7 @@ func FetchAllProducts(limit, offset int, queryStr string, filters map[string]str
 	return products, nil
 }
 
-func FetchProductByArtikel(artikel string) (models.Product, error) {
+func FetchProductByID(id int) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
 	var offlineJSON []byte
@@ -390,9 +381,9 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 				ELSE 'Unknown' 
 			END AS usia,
 			status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus 
-		FROM master_products 
-		WHERE artikel = $1 AND tanggal_hapus IS NULL
-	`, artikel).
+			FROM master_products 
+		WHERE no = $1 AND tanggal_hapus IS NULL
+	`, id).
 		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
@@ -456,7 +447,7 @@ func FetchProductByArtikel(artikel string) (models.Product, error) {
 	return p, nil
 }
 
-func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error) {
+func FetchProductByIDIncludeDeleted(id int) (models.Product, error) {
 	var p models.Product
 	var marketplaceJSON []byte
 	var offlineJSON []byte
@@ -478,8 +469,8 @@ func FetchProductByArtikelIncludeDeleted(artikel string) (models.Product, error)
 			END AS usia,
 			status, supplier, diupdate_oleh, tanggal_update, tanggal_hapus 
 		FROM master_products 
-		WHERE artikel = $1
-	`, artikel).
+		WHERE no = $1
+	`, id).
 		Scan(&p.No, &p.Artikel, &p.Nama, &p.Deskripsi, &ratingJSON, &p.Warna, &p.Size, &p.Grup, &p.Unit, &p.Kat, &p.Model, &p.Gender, &p.Tipe, &p.Harga, &hargaDiskonNull, &marketplaceJSON, &offlineJSON, pq.Array(&p.Gambar), &p.TanggalProduk, &p.TanggalTerima, &usia, &p.Status, &p.Supplier, &p.DiupdateOleh, &p.TanggalUpdate, &p.TanggalHapus)
 
 	if err == sql.ErrNoRows {
@@ -596,9 +587,9 @@ func InsertProduct(p *models.Product) error {
 	).Scan(&p.No)
 }
 
-func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
+func UpdateProduct(id int, p *models.Product) (models.Product, error) {
 	// First fetch the existing product to get current values
-	currentProduct, err := FetchProductByArtikel(artikel)
+	currentProduct, err := FetchProductByID(id)
 	if err != nil {
 		return *p, err
 	}
@@ -721,8 +712,8 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 	paramCount++
 
 	// Remove the trailing comma and complete the query
-	query = query[:len(query)-1] + " WHERE artikel = $" + fmt.Sprintf("%d", paramCount)
-	args = append(args, artikel)
+	query = query[:len(query)-1] + " WHERE no = $" + fmt.Sprintf("%d", paramCount)
+	args = append(args, id)
 
 	// If no fields to update, return the current product
 	if fieldsToUpdate == 1 { // Only tanggal_update was added
@@ -744,13 +735,13 @@ func UpdateProduct(artikel string, p *models.Product) (models.Product, error) {
 	}
 
 	// Fetch and return the updated product
-	return FetchProductByArtikel(artikel)
+	return FetchProductByID(id)
 }
 
-func DeleteProduct(artikel string) error {
+func DeleteProduct(id int) error {
 	// Soft delete by setting tanggal_hapus to the current time
 	currentTime := time.Now()
-	result, err := DB.Exec("UPDATE master_products SET tanggal_hapus = $1 WHERE artikel = $2 AND tanggal_hapus IS NULL", currentTime, artikel)
+	result, err := DB.Exec("UPDATE master_products SET tanggal_hapus = $1 WHERE no = $2 AND tanggal_hapus IS NULL", currentTime, id)
 	if err != nil {
 		return err
 	}
@@ -767,8 +758,8 @@ func DeleteProduct(artikel string) error {
 }
 
 // RestoreProduct restores a soft-deleted product by setting tanggal_hapus to NULL
-func RestoreProduct(artikel string) error {
-	result, err := DB.Exec("UPDATE master_products SET tanggal_hapus = NULL WHERE artikel = $1 AND tanggal_hapus IS NOT NULL", artikel)
+func RestoreProduct(id int) error {
+	result, err := DB.Exec("UPDATE master_products SET tanggal_hapus = NULL WHERE no = $1 AND tanggal_hapus IS NOT NULL", id)
 	if err != nil {
 		return err
 	}

@@ -29,3 +29,14 @@ INSERT INTO master_units (value, tanggal_update) VALUES
 ('SET', CURRENT_TIMESTAMP)
 ON CONFLICT (value) DO UPDATE
 SET tanggal_update = CURRENT_TIMESTAMP; 
+
+-- Remove unique constraint after insertions
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_master_units_value'
+    ) THEN
+        ALTER TABLE master_units DROP CONSTRAINT uq_master_units_value;
+    END IF;
+END$$;

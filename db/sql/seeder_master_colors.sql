@@ -55,3 +55,14 @@ INSERT INTO master_colors (nama, hex, tanggal_update) VALUES
 ('Teal', '#008080', CURRENT_TIMESTAMP)
 ON CONFLICT (nama) DO UPDATE
 SET hex = EXCLUDED.hex, tanggal_update = CURRENT_TIMESTAMP;
+
+-- Remove unique constraint after insertions
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_master_colors_nama'
+    ) THEN
+        ALTER TABLE master_colors DROP CONSTRAINT uq_master_colors_nama;
+    END IF;
+END$$;

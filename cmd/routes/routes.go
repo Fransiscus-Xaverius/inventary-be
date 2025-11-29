@@ -45,7 +45,7 @@ func SetupRoutes() *gin.Engine {
 		products := api.Group("/products")
 		{
 			products.GET("", publicHandlers.GetAllProducts)
-			products.GET("/:artikel", publicHandlers.GetProductByArtikel)
+			products.GET("/:id", publicHandlers.GetProductByID)
 		}
 
 		/**
@@ -78,10 +78,10 @@ func SetupRoutes() *gin.Engine {
 				productsProtected.GET("", adminHandlers.GetAllProducts)
 				productsProtected.POST("", adminHandlers.CreateProduct)
 				productsProtected.GET("/deleted", adminHandlers.GetDeletedProducts) // Route for fetching deleted products
-				productsProtected.GET("/:artikel", adminHandlers.GetProductByArtikel)
-				productsProtected.PUT("/:artikel", adminHandlers.UpdateProduct)
-				productsProtected.DELETE("/:artikel", adminHandlers.DeleteProduct)
-				productsProtected.POST("/restore/:artikel", adminHandlers.RestoreProduct) // Route for restoring deleted products
+				productsProtected.GET("/:id", adminHandlers.GetProductByID)
+				productsProtected.PUT("/:id", adminHandlers.UpdateProduct)
+				productsProtected.DELETE("/:id", adminHandlers.DeleteProduct)
+				productsProtected.POST("/restore/:id", adminHandlers.RestoreProduct) // Route for restoring deleted products
 			}
 
 			/**

@@ -26,6 +26,17 @@ END$$;
 INSERT INTO master_genders (value, tanggal_update) VALUES
 ('Pria', CURRENT_TIMESTAMP),
 ('Wanita', CURRENT_TIMESTAMP),
-('Unisex', CURRENT_TIMESTAMP)
+('Kids', CURRENT_TIMESTAMP)
 ON CONFLICT (value) DO UPDATE
 SET tanggal_update = CURRENT_TIMESTAMP; 
+
+-- Remove unique constraint after insertions
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_master_genders_value'
+    ) THEN
+        ALTER TABLE master_genders DROP CONSTRAINT uq_master_genders_value;
+    END IF;
+END$$;

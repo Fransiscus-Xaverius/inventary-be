@@ -3,6 +3,7 @@ package publicHandlers
 import (
 	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/everysoft/inventary-be/app/handlers"
 	"github.com/everysoft/inventary-be/app/helpers"
@@ -60,10 +61,17 @@ func GetAllProducts(c *gin.Context) {
 	})
 }
 
-// GetProductByArtikel handles retrieving a single product by its artikel
-func GetProductByArtikel(c *gin.Context) {
-	artikel := c.Param("artikel")
-	product, err := db.FetchProductByArtikel(artikel)
+// GetProductByID handles retrieving a single product by its ID
+func GetProductByID(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+
+	if err != nil {
+		handlers.SendError(c, http.StatusBadRequest, "Invalid product ID", nil)
+		return
+	}
+
+	product, err := db.FetchProductByID(id)
 
 	if err != nil {
 		if err.Error() == "not_found" {

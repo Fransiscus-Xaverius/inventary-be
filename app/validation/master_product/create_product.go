@@ -102,26 +102,6 @@ func ValidateProduct(p *models.Product, schema ValidationSchema) *validation.Val
 		}
 	}
 
-	// Check for duplicate artikel if not empty
-	if schema.ArtikelUnique && strings.TrimSpace(p.Artikel) != "" {
-		_, err := db.FetchProductByArtikelIncludeDeleted(p.Artikel)
-		if err == nil || (err != nil && err.Error() != "not_found") {
-			// If no error, then product exists
-			// Or if there's an error but it's not "not_found", then there's a different issue
-			if err == nil {
-				return &validation.ValidationError{
-					Error:      "Product with this artikel already exists",
-					ErrorField: "artikel",
-				}
-			}
-			// Otherwise, there was a database error
-			return &validation.ValidationError{
-				Error:      "Error checking artikel uniqueness: " + err.Error(),
-				ErrorField: "artikel",
-			}
-		}
-	}
-
 	// Validate warna (required, comma-separated color IDs)
 	if schema.WarnaRequired && strings.TrimSpace(p.Warna) == "" {
 		return &validation.ValidationError{

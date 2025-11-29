@@ -20,15 +20,6 @@ func CreateMasterTipesTableIfNotExists() error {
 			tanggal_hapus TIMESTAMPTZ
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_master_tipes_value ON master_tipes(value);`,
-		`DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'uq_master_tipes_value'
-			) THEN
-				ALTER TABLE master_tipes ADD CONSTRAINT uq_master_tipes_value UNIQUE (value);
-			END IF;
-		END$$;`,
 	}
 
 	for _, stmt := range statements {
