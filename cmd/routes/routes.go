@@ -27,8 +27,8 @@ func SetupRoutes() *gin.Engine {
 	{
 		auth := api.Group("/auth")
 		{
-			// auth.POST("/register", publicHandlers.RegisterHandler) // You'll need to update these handler functions
-			auth.POST("/login", publicHandlers.LoginHandler) // to use gin.Context instead of http.HandlerFunc
+			auth.POST("/register", publicHandlers.RegisterHandler) // You'll need to update these handler functions
+			auth.POST("/login", publicHandlers.LoginHandler)       // to use gin.Context instead of http.HandlerFunc
 		}
 
 		/**

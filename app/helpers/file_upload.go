@@ -22,10 +22,11 @@ const (
 
 // FileUploadOptions defines validation options for file uploads.
 type FileUploadOptions struct {
-	ValidateAspectRatio bool
-	AllowedAspectRatios []float64
-	MinWidth            int
-	MinHeight           int
+	ValidateAspectRatio  bool
+	AllowedAspectRatios  []float64
+	AspectRatioTolerance float64
+	MinWidth             int
+	MinHeight            int
 }
 
 // SaveUploadedFile saves an uploaded file with optional validation.
@@ -48,16 +49,20 @@ func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination st
 		}
 
 		if opts.MinWidth > 0 && opts.MinHeight > 0 {
-			if config.Width < opts.MinWidth && config.Height < opts.MinHeight {
-				return "", fmt.Errorf("image resolution must be at least %dpx wide or %dpx high", opts.MinWidth, opts.MinHeight)
+			if config.Width < opts.MinWidth || config.Height < opts.MinHeight {
+				return "", fmt.Errorf("image resolution must be at least %dpx by %dpx", opts.MinWidth, opts.MinHeight)
 			}
 		}
 
 		if opts.ValidateAspectRatio && len(opts.AllowedAspectRatios) > 0 {
 			imageAspectRatio := float64(config.Width) / float64(config.Height)
 			valid := false
+			tolerance := AspectRatioTolerance
+			if opts.AspectRatioTolerance > 0 {
+				tolerance = opts.AspectRatioTolerance
+			}
 			for _, allowedRatio := range opts.AllowedAspectRatios {
-				if math.Abs(imageAspectRatio-allowedRatio) <= AspectRatioTolerance {
+				if math.Abs(imageAspectRatio-allowedRatio) <= tolerance {
 					valid = true
 					break
 				}
@@ -118,16 +123,20 @@ func SaveUploadedFileWithStaticName(c *gin.Context, file *multipart.FileHeader, 
 		}
 
 		if opts.MinWidth > 0 && opts.MinHeight > 0 {
-			if config.Width < opts.MinWidth && config.Height < opts.MinHeight {
-				return "", fmt.Errorf("image resolution must be at least %dpx wide or %dpx high", opts.MinWidth, opts.MinHeight)
+			if config.Width < opts.MinWidth || config.Height < opts.MinHeight {
+				return "", fmt.Errorf("image resolution must be at least %dpx by %dpx", opts.MinWidth, opts.MinHeight)
 			}
 		}
 
 		if opts.ValidateAspectRatio && len(opts.AllowedAspectRatios) > 0 {
 			imageAspectRatio := float64(config.Width) / float64(config.Height)
 			valid := false
+			tolerance := AspectRatioTolerance
+			if opts.AspectRatioTolerance > 0 {
+				tolerance = opts.AspectRatioTolerance
+			}
 			for _, allowedRatio := range opts.AllowedAspectRatios {
-				if math.Abs(imageAspectRatio-allowedRatio) <= AspectRatioTolerance {
+				if math.Abs(imageAspectRatio-allowedRatio) <= tolerance {
 					valid = true
 					break
 				}

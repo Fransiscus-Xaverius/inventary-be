@@ -23,6 +23,30 @@ import (
 
 var maxImages = 10
 
+var productImageAspectRatios = []float64{
+	1.0, // 1:1 square
+}
+
+var productImageMinResolution = struct {
+	Width  int
+	Height int
+}{
+	Width:  512,
+	Height: 512,
+}
+
+const productAspectRatioTolerance = 0.10
+
+func productImageUploadOptions() *helpers.FileUploadOptions {
+	return &helpers.FileUploadOptions{
+		ValidateAspectRatio:  true,
+		AllowedAspectRatios:  productImageAspectRatios,
+		AspectRatioTolerance: productAspectRatioTolerance,
+		MinWidth:             productImageMinResolution.Width,
+		MinHeight:            productImageMinResolution.Height,
+	}
+}
+
 // deleteImageFiles removes image files from the filesystem
 func deleteImageFiles(imageUrls []string) {
 	for _, imageUrl := range imageUrls {
@@ -254,7 +278,7 @@ func CreateProduct(c *gin.Context) {
 			}
 
 			// Handle image upload
-			filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", nil)
+			filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", productImageUploadOptions())
 			if err != nil {
 				log.Printf("CreateProduct: Failed to save image %d: %v", i, err)
 				handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
@@ -476,7 +500,7 @@ func UpdateProduct(c *gin.Context) {
 				}
 
 				// Handle image upload
-				filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", nil)
+				filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", productImageUploadOptions())
 				if err != nil {
 					log.Printf("UpdateProduct: Failed to save image %d: %v", i, err)
 					handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
