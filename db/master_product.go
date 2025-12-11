@@ -635,12 +635,11 @@ func UpdateProduct(id int, p *models.Product) (models.Product, error) {
 	}
 
 	// Handle HargaDiskon properly as *float64
-	if p.HargaDiskon != nil {
-		fieldsToUpdate++
-		query += fmt.Sprintf(" harga_diskon = $%d,", paramCount)
-		args = append(args, p.HargaDiskon)
-		paramCount++
-	}
+	// Always update harga_diskon to allow setting it to NULL (since the handler passes the full product state)
+	fieldsToUpdate++
+	query += fmt.Sprintf(" harga_diskon = $%d,", paramCount)
+	args = append(args, p.HargaDiskon)
+	paramCount++
 
 	// Always update rating if it has proper structure (not default empty state)
 	// We consider it valid for update if it has proper keys, regardless of values
@@ -714,6 +713,9 @@ func UpdateProduct(id int, p *models.Product) (models.Product, error) {
 	// Remove the trailing comma and complete the query
 	query = query[:len(query)-1] + " WHERE no = $" + fmt.Sprintf("%d", paramCount)
 	args = append(args, id)
+
+	log.Printf("DB UpdateProduct: Query: %s", query)
+	log.Printf("DB UpdateProduct: Args: %+v", args)
 
 	// If no fields to update, return the current product
 	if fieldsToUpdate == 1 { // Only tanggal_update was added

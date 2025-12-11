@@ -561,19 +561,58 @@ func UpdateProduct(c *gin.Context) {
 	}
 
 	// Handle numeric field
-	if harga, ok := requestBody["harga"].(float64); ok {
-		log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, harga)
-		productToUpdate.Harga = harga
+	if val, exists := requestBody["harga"]; exists {
+		if f, ok := val.(float64); ok {
+			log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, f)
+			productToUpdate.Harga = f
+		} else if s, ok := val.(string); ok && s != "" {
+			if f, err := strconv.ParseFloat(s, 64); err == nil {
+				log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, f)
+				productToUpdate.Harga = f
+			}
+		}
 	}
 
 	// Handle harga_diskon field properly as *float64
-	if hargaDiskon, ok := requestBody["harga_diskon"].(float64); ok {
+	if val, exists := requestBody["harga_diskon"]; exists {
+		log.Printf("UpdateProduct: harga_diskon raw value: %v (type %T)", val, val)
 		oldValue := "nil"
 		if productToUpdate.HargaDiskon != nil {
 			oldValue = fmt.Sprintf("%f", *productToUpdate.HargaDiskon)
 		}
-		log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, hargaDiskon)
-		productToUpdate.HargaDiskon = &hargaDiskon
+
+		if val == nil {
+			log.Printf("UpdateProduct: Updating harga_diskon from %s to nil", oldValue)
+			productToUpdate.HargaDiskon = nil
+		} else if f, ok := val.(float64); ok {
+			// Treat 0 as nil (remove discount)
+			if f == 0 {
+				log.Printf("UpdateProduct: Updating harga_diskon from %s to nil (value 0)", oldValue)
+				productToUpdate.HargaDiskon = nil
+			} else {
+				log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, f)
+				productToUpdate.HargaDiskon = &f
+			}
+		} else if s, ok := val.(string); ok {
+			s = strings.TrimSpace(s)
+			// Handle empty string, "null", "undefined", or "0" as nil
+			if s == "" || strings.ToLower(s) == "null" || strings.ToLower(s) == "undefined" || s == "0" {
+				log.Printf("UpdateProduct: Updating harga_diskon from %s to nil", oldValue)
+				productToUpdate.HargaDiskon = nil
+			} else {
+				if f, err := strconv.ParseFloat(s, 64); err == nil {
+					if f == 0 {
+						log.Printf("UpdateProduct: Updating harga_diskon from %s to nil (value 0)", oldValue)
+						productToUpdate.HargaDiskon = nil
+					} else {
+						log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, f)
+						productToUpdate.HargaDiskon = &f
+					}
+				} else {
+					log.Printf("UpdateProduct: Failed to parse harga_diskon string '%s': %v", s, err)
+				}
+			}
+		}
 	}
 
 	// Handle rating field (can come as either JSON object or JSON string)
@@ -824,7 +863,12 @@ func UpdateProduct(c *gin.Context) {
 	// Convert all IDs to values in one call
 	log.Println("UpdateProduct: Converting product fields from IDs to values")
 	helpers.ConvertProductFields(&productToUpdate, fieldsToConvert)
-	log.Printf("UpdateProduct: Product after field conversion: %+v", productToUpdate)
+	
+	hargaDiskonVal := "nil"
+	if productToUpdate.HargaDiskon != nil {
+		hargaDiskonVal = fmt.Sprintf("%f", *productToUpdate.HargaDiskon)
+	}
+	log.Printf("UpdateProduct: Product after field conversion. HargaDiskon: %s. Full struct: %+v", hargaDiskonVal, productToUpdate)
 
 	// Perform the update operation
 	log.Println("UpdateProduct: Attempting to update product in database")
