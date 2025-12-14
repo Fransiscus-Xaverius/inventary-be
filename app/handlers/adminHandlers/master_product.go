@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"reflect"
@@ -221,8 +220,7 @@ func CreateProduct(c *gin.Context) {
 	log.Println("--------------------------------")
 
 	// Handle image uploads
-	var imageUrls []string
-	log.Println("CreateProduct: Looking for indexed image files (gambar[0], gambar[1], etc.)")
+	log.Println("CreateProduct: Processing images using unified format (images_metadata)")
 
 	// Get multipart form to access files with indexed keys
 	form, err := c.MultipartForm()
@@ -234,70 +232,46 @@ func CreateProduct(c *gin.Context) {
 	log.Println("")
 
 	log.Printf("CreateProduct: Form files: %+v", form.File)
+	log.Printf("CreateProduct: Form values keys: %v", getMapKeys(formValuesToMap(form.Value)))
 	log.Println("")
 
-	// Collect all gambar files (both indexed and array format)
-	var allFiles []*multipart.FileHeader
-
-	// Check for array format (gambar)
-	if files, ok := form.File["gambar"]; ok {
-		log.Printf("CreateProduct: Found %d files with key 'gambar'", len(files))
-		allFiles = append(allFiles, files...)
+	// Get images_metadata from form
+	var imagesMetadataStr string
+	if metadataValues, ok := form.Value["images_metadata"]; ok && len(metadataValues) > 0 {
+		imagesMetadataStr = metadataValues[0]
+		log.Printf("CreateProduct: Found images_metadata: %s", imagesMetadataStr)
 	}
 	log.Println("")
 
-	// Check for indexed format (gambar[0], gambar[1], etc.)
-	for imageIndex := range maxImages { // Check up to maxImages files
-		key := fmt.Sprintf("gambar[%d]", imageIndex)
-		if files, ok := form.File[key]; ok {
-			log.Printf("CreateProduct: Found %d files with key '%s'", len(files), key)
-			allFiles = append(allFiles, files...)
-		}
-	}
-	log.Println("")
-
-	if len(allFiles) == 0 {
-		log.Println("CreateProduct: No files found with keys 'gambar' or 'gambar[x]'")
-	} else {
-		log.Printf("CreateProduct: Found total %d files", len(allFiles))
-
-		if len(allFiles) > maxImages {
-			log.Println("Maximum of " + strconv.Itoa(maxImages) + " images allowed")
-			handlers.SendError(c, http.StatusBadRequest, "Maximum of "+strconv.Itoa(maxImages)+" images allowed", nil)
-			return
-		}
-		log.Println("")
-
-		for i, file := range allFiles {
-			log.Printf("CreateProduct: Processing file %d: %s, Size: %d", i, file.Filename, file.Size)
-
-			// Check if file has content
-			if file.Size == 0 {
-				log.Printf("CreateProduct: File %d has zero size, skipping", i)
-				continue
-			}
-
-			// Handle image upload
-			filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", productImageUploadOptions())
-			if err != nil {
-				log.Printf("CreateProduct: Failed to save image %d: %v", i, err)
-				handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
-				return
-			}
-			imageUrls = append(imageUrls, filePath)
-			log.Printf("CreateProduct: Successfully saved image %d to: %s", i, filePath)
-		}
-	}
-	log.Println("")
-
-	// Check if we have any valid images
-	if len(imageUrls) == 0 {
-		log.Println("CreateProduct: No valid images were uploaded")
-		handlers.SendError(c, http.StatusBadRequest, "At least one valid image file is required", nil)
+	if imagesMetadataStr == "" {
+		log.Println("CreateProduct: images_metadata is required")
+		handlers.SendError(c, http.StatusBadRequest, "images_metadata is required", nil)
 		return
 	}
 	log.Println("")
 
+	// Process images using unified format
+	processor := helpers.NewProductImageProcessor(maxImages, "uploads/products/", productImageUploadOptions())
+
+	// Parse and validate metadata
+	if err := processor.ParseMetadata(imagesMetadataStr); err != nil {
+		log.Printf("CreateProduct: Failed to parse images_metadata: %v", err)
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	log.Println("")
+
+	// Process images (handle file uploads and validate existing paths)
+	if err := processor.ProcessImages(c, form); err != nil {
+		log.Printf("CreateProduct: Failed to process images: %v", err)
+		// Cleanup any uploaded files on error
+		processor.Cleanup()
+		handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	log.Println("")
+
+	imageUrls := processor.GetFinalImages()
 	log.Printf("CreateProduct: Successfully processed %d images: %v", len(imageUrls), imageUrls)
 	log.Println("--------------------------------")
 
@@ -457,63 +431,43 @@ func UpdateProduct(c *gin.Context) {
 		log.Printf("UpdateProduct: Final requestBody keys: %v", getMapKeys(requestBody))
 		log.Println("")
 
-		// Handle image uploads
-		log.Println("UpdateProduct: Looking for image files (gambar[0], gambar[1], etc.)")
+		// Handle image uploads using the unified format
+		log.Println("UpdateProduct: Checking for images_metadata")
+		log.Printf("UpdateProduct: Form files: %+v", form.File)
 
-		// Collect all gambar files (both indexed and array format)
-		var allFiles []*multipart.FileHeader
-
-		// Check for array format (gambar)
-		if files, ok := form.File["gambar"]; ok {
-			log.Printf("UpdateProduct: Found %d files with key 'gambar'", len(files))
-			allFiles = append(allFiles, files...)
-		}
-
-		// Check for indexed format (gambar[0], gambar[1], etc.)
-		for imageIndex := range maxImages { // Check up to maxImages files
-			key := fmt.Sprintf("gambar[%d]", imageIndex)
-			if files, ok := form.File[key]; ok {
-				log.Printf("UpdateProduct: Found %d files with key '%s'", len(files), key)
-				allFiles = append(allFiles, files...)
-			}
+		// Check for images_metadata in form values (optional for updates)
+		var imagesMetadataStr string
+		if metadataValues, ok := form.Value["images_metadata"]; ok && len(metadataValues) > 0 {
+			imagesMetadataStr = metadataValues[0]
+			log.Printf("UpdateProduct: Found images_metadata: %s", imagesMetadataStr)
 		}
 		log.Println("")
 
-		if len(allFiles) == 0 {
-			log.Println("UpdateProduct: No image files found - keeping existing images")
-		} else {
-			log.Printf("UpdateProduct: Found total %d files", len(allFiles))
+		if imagesMetadataStr != "" {
+			// Process using unified format
+			processor := helpers.NewProductImageProcessor(maxImages, "uploads/products/", productImageUploadOptions())
 
-			if len(allFiles) > maxImages {
-				log.Println("UpdateProduct: Maximum of " + strconv.Itoa(maxImages) + " images allowed")
-				handlers.SendError(c, http.StatusBadRequest, "Maximum of "+strconv.Itoa(maxImages)+" images allowed", nil)
+			// Parse and validate metadata
+			if err := processor.ParseMetadata(imagesMetadataStr); err != nil {
+				log.Printf("UpdateProduct: Failed to parse images_metadata: %v", err)
+				handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
 				return
 			}
 
-			for i, file := range allFiles {
-				log.Printf("UpdateProduct: Processing file %d: %s, Size: %d", i, file.Filename, file.Size)
-
-				// Check if file has content
-				if file.Size == 0 {
-					log.Printf("UpdateProduct: File %d has zero size, skipping", i)
-					continue
-				}
-
-				// Handle image upload
-				filePath, err := helpers.SaveUploadedFile(c, file, "uploads/products/", productImageUploadOptions())
-				if err != nil {
-					log.Printf("UpdateProduct: Failed to save image %d: %v", i, err)
-					handlers.SendError(c, http.StatusInternalServerError, "Failed to save image: "+err.Error(), nil)
-					return
-				}
-				imageUrls = append(imageUrls, filePath)
-				log.Printf("UpdateProduct: Successfully saved image %d to: %s", i, filePath)
+			// Process images (handle file uploads and validate existing paths)
+			if err := processor.ProcessImages(c, form); err != nil {
+				log.Printf("UpdateProduct: Failed to process images: %v", err)
+				// Cleanup any uploaded files on error
+				processor.Cleanup()
+				handlers.SendError(c, http.StatusBadRequest, err.Error(), nil)
+				return
 			}
 
-			if len(imageUrls) > 0 {
-				imageProcessed = true
-				log.Printf("UpdateProduct: Successfully processed %d images: %v", len(imageUrls), imageUrls)
-			}
+			imageUrls = processor.GetFinalImages()
+			imageProcessed = true
+			log.Printf("UpdateProduct: Successfully processed %d images: %v", len(imageUrls), imageUrls)
+		} else {
+			log.Println("UpdateProduct: No images_metadata provided - keeping existing images")
 		}
 		log.Println("")
 
@@ -561,19 +515,58 @@ func UpdateProduct(c *gin.Context) {
 	}
 
 	// Handle numeric field
-	if harga, ok := requestBody["harga"].(float64); ok {
-		log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, harga)
-		productToUpdate.Harga = harga
+	if val, exists := requestBody["harga"]; exists {
+		if f, ok := val.(float64); ok {
+			log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, f)
+			productToUpdate.Harga = f
+		} else if s, ok := val.(string); ok && s != "" {
+			if f, err := strconv.ParseFloat(s, 64); err == nil {
+				log.Printf("UpdateProduct: Updating harga from %f to %f", productToUpdate.Harga, f)
+				productToUpdate.Harga = f
+			}
+		}
 	}
 
 	// Handle harga_diskon field properly as *float64
-	if hargaDiskon, ok := requestBody["harga_diskon"].(float64); ok {
+	if val, exists := requestBody["harga_diskon"]; exists {
+		log.Printf("UpdateProduct: harga_diskon raw value: %v (type %T)", val, val)
 		oldValue := "nil"
 		if productToUpdate.HargaDiskon != nil {
 			oldValue = fmt.Sprintf("%f", *productToUpdate.HargaDiskon)
 		}
-		log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, hargaDiskon)
-		productToUpdate.HargaDiskon = &hargaDiskon
+
+		if val == nil {
+			log.Printf("UpdateProduct: Updating harga_diskon from %s to nil", oldValue)
+			productToUpdate.HargaDiskon = nil
+		} else if f, ok := val.(float64); ok {
+			// Treat 0 as nil (remove discount)
+			if f == 0 {
+				log.Printf("UpdateProduct: Updating harga_diskon from %s to nil (value 0)", oldValue)
+				productToUpdate.HargaDiskon = nil
+			} else {
+				log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, f)
+				productToUpdate.HargaDiskon = &f
+			}
+		} else if s, ok := val.(string); ok {
+			s = strings.TrimSpace(s)
+			// Handle empty string, "null", "undefined", or "0" as nil
+			if s == "" || strings.ToLower(s) == "null" || strings.ToLower(s) == "undefined" || s == "0" {
+				log.Printf("UpdateProduct: Updating harga_diskon from %s to nil", oldValue)
+				productToUpdate.HargaDiskon = nil
+			} else {
+				if f, err := strconv.ParseFloat(s, 64); err == nil {
+					if f == 0 {
+						log.Printf("UpdateProduct: Updating harga_diskon from %s to nil (value 0)", oldValue)
+						productToUpdate.HargaDiskon = nil
+					} else {
+						log.Printf("UpdateProduct: Updating harga_diskon from %s to %f", oldValue, f)
+						productToUpdate.HargaDiskon = &f
+					}
+				} else {
+					log.Printf("UpdateProduct: Failed to parse harga_diskon string '%s': %v", s, err)
+				}
+			}
+		}
 	}
 
 	// Handle rating field (can come as either JSON object or JSON string)
@@ -733,17 +726,18 @@ func UpdateProduct(c *gin.Context) {
 		log.Printf("UpdateProduct: Old images: %v", existingProduct.Gambar)
 		log.Printf("UpdateProduct: New images: %v", imageUrls)
 
-		// Delete old image files
+		// Use smart orphaned image cleanup - only delete images that are no longer referenced
+		// This preserves existing images that are still in the new array
 		if len(existingProduct.Gambar) > 0 {
-			log.Println("UpdateProduct: Deleting old image files")
-			deleteImageFiles(existingProduct.Gambar)
+			log.Println("UpdateProduct: Cleaning up orphaned images (images no longer referenced)")
+			helpers.CleanupOrphanedImages(existingProduct.Gambar, imageUrls)
 		}
 
 		// Set new images
 		productToUpdate.Gambar = imageUrls
-		log.Println("UpdateProduct: Successfully replaced images with uploaded files")
+		log.Println("UpdateProduct: Successfully updated images")
 	} else if gambar, ok := requestBody["gambar"].([]interface{}); ok {
-		// Handle gambar field as array of strings from JSON
+		// Handle gambar field as array of strings from JSON (legacy support)
 		var gambarStrings []string
 		for _, img := range gambar {
 			if imgStr, ok := img.(string); ok {
@@ -753,22 +747,22 @@ func UpdateProduct(c *gin.Context) {
 		if len(gambarStrings) > 0 {
 			log.Printf("UpdateProduct: Updating gambar URLs from %v to %v", productToUpdate.Gambar, gambarStrings)
 
-			// Delete old image files
+			// Cleanup orphaned images
 			if len(existingProduct.Gambar) > 0 {
-				log.Println("UpdateProduct: Deleting old image files")
-				deleteImageFiles(existingProduct.Gambar)
+				log.Println("UpdateProduct: Cleaning up orphaned images")
+				helpers.CleanupOrphanedImages(existingProduct.Gambar, gambarStrings)
 			}
 
 			productToUpdate.Gambar = gambarStrings
 		}
 	} else if gambarSlice, ok := requestBody["gambar"].([]string); ok {
-		// Handle gambar field as slice of strings from JSON
+		// Handle gambar field as slice of strings from JSON (legacy support)
 		log.Printf("UpdateProduct: Updating gambar URLs from %v to %v", productToUpdate.Gambar, gambarSlice)
 
-		// Delete old image files
+		// Cleanup orphaned images
 		if len(existingProduct.Gambar) > 0 {
-			log.Println("UpdateProduct: Deleting old image files")
-			deleteImageFiles(existingProduct.Gambar)
+			log.Println("UpdateProduct: Cleaning up orphaned images")
+			helpers.CleanupOrphanedImages(existingProduct.Gambar, gambarSlice)
 		}
 
 		productToUpdate.Gambar = gambarSlice
@@ -824,7 +818,12 @@ func UpdateProduct(c *gin.Context) {
 	// Convert all IDs to values in one call
 	log.Println("UpdateProduct: Converting product fields from IDs to values")
 	helpers.ConvertProductFields(&productToUpdate, fieldsToConvert)
-	log.Printf("UpdateProduct: Product after field conversion: %+v", productToUpdate)
+
+	hargaDiskonVal := "nil"
+	if productToUpdate.HargaDiskon != nil {
+		hargaDiskonVal = fmt.Sprintf("%f", *productToUpdate.HargaDiskon)
+	}
+	log.Printf("UpdateProduct: Product after field conversion. HargaDiskon: %s. Full struct: %+v", hargaDiskonVal, productToUpdate)
 
 	// Perform the update operation
 	log.Println("UpdateProduct: Attempting to update product in database")
@@ -992,4 +991,15 @@ func getMapKeys(m map[string]interface{}) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// formValuesToMap converts form values to a map[string]interface{} for logging
+func formValuesToMap(values map[string][]string) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range values {
+		if len(v) > 0 {
+			result[k] = v[0]
+		}
+	}
+	return result
 }
