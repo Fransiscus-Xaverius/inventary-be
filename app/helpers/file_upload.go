@@ -100,7 +100,8 @@ func SaveUploadedFile(c *gin.Context, file *multipart.FileHeader, destination st
 		return "", fmt.Errorf("failed to save file content: %w", err)
 	}
 
-	return "/" + filePath, nil
+	// Always return URL-style paths with forward slashes
+	return "/" + filepath.ToSlash(filePath), nil
 }
 
 // SaveUploadedFileWithStaticName saves an uploaded file with a static name and optional validation.
@@ -171,5 +172,6 @@ func SaveUploadedFileWithStaticName(c *gin.Context, file *multipart.FileHeader, 
 		return "", fmt.Errorf("failed to save file content: %w", err)
 	}
 
-	return "/" + filePath, nil
+	// Always return URL-style paths with forward slashes
+	return "/" + filepath.ToSlash(filePath), nil
 }

@@ -446,6 +446,9 @@ func UpdateProduct(c *gin.Context) {
 		if imagesMetadataStr != "" {
 			// Process using unified format
 			processor := helpers.NewProductImageProcessor(maxImages, "uploads/products/", productImageUploadOptions())
+			// Updates should not fail just because a referenced existing image is missing on disk
+			// (common in dev environments or after manual file cleanup).
+			processor.SkipFileExistenceCheck = true
 
 			// Parse and validate metadata
 			if err := processor.ParseMetadata(imagesMetadataStr); err != nil {
