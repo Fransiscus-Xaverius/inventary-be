@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"mime/multipart"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -32,6 +33,10 @@ type ProductImageProcessor struct {
 	MaxImages     int
 	UploadDir     string
 	UploadOptions *FileUploadOptions
+	// If true, do not fail when an "existing" image path isn't found on disk.
+	// Useful for update flows where clients may reference images served elsewhere
+	// or when the local filesystem doesn't have the legacy file.
+	SkipFileExistenceCheck bool
 }
 
 // NewProductImageProcessor creates a new processor with default settings.
@@ -134,20 +139,45 @@ func (p *ProductImageProcessor) processExistingImage(entry ImageMetadataEntry) e
 		return fmt.Errorf("missing URL for existing image at index %d", entry.Index)
 	}
 
+	// Normalize URL/path input (frontend may send absolute URL or missing leading slash)
+	normalizedURL := strings.TrimSpace(entry.URL)
+	// Convert Windows separators to URL separators
+	normalizedURL = strings.ReplaceAll(normalizedURL, "\\", "/")
+	if strings.HasPrefix(normalizedURL, "http://") || strings.HasPrefix(normalizedURL, "https://") {
+		u, err := url.Parse(normalizedURL)
+		if err != nil {
+			return fmt.Errorf("invalid image path at index %d: %s", entry.Index, normalizedURL)
+		}
+		normalizedURL = strings.ReplaceAll(u.Path, "\\", "/")
+	}
+	// Strip any query/fragment from relative URLs too (e.g. /uploads/.../a.avif?t=123)
+	if i := strings.Index(normalizedURL, "?"); i >= 0 {
+		normalizedURL = normalizedURL[:i]
+	}
+	if i := strings.Index(normalizedURL, "#"); i >= 0 {
+		normalizedURL = normalizedURL[:i]
+	}
+	if strings.HasPrefix(normalizedURL, "uploads/") {
+		normalizedURL = "/" + normalizedURL
+	}
+
 	// Security: Validate the path
-	if !IsValidImagePath(entry.URL) {
-		return fmt.Errorf("invalid image path at index %d", entry.Index)
+	if !IsValidImagePath(normalizedURL) {
+		return fmt.Errorf("invalid image path at index %d: %s", entry.Index, normalizedURL)
 	}
 
 	// Verify file exists on disk
-	filePath := strings.TrimPrefix(entry.URL, "/")
+	filePath := strings.TrimPrefix(normalizedURL, "/")
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		log.Printf("ProductImageProcessor: Image file not found at path: %s", filePath)
-		return fmt.Errorf("image file not found at index %d", entry.Index)
+		if !p.SkipFileExistenceCheck {
+			return fmt.Errorf("image file not found at index %d", entry.Index)
+		}
+		log.Printf("ProductImageProcessor: SkipFileExistenceCheck enabled - keeping missing image reference at index %d", entry.Index)
 	}
 
-	p.FinalImages[entry.Index] = entry.URL
-	log.Printf("ProductImageProcessor: Kept existing image at index %d: %s", entry.Index, entry.URL)
+	p.FinalImages[entry.Index] = normalizedURL
+	log.Printf("ProductImageProcessor: Kept existing image at index %d: %s", entry.Index, normalizedURL)
 	return nil
 }
 
@@ -208,6 +238,13 @@ func (p *ProductImageProcessor) GetFinalImages() []string {
 // and doesn't contain path traversal sequences.
 // SECURITY: This prevents path traversal attacks.
 func IsValidImagePath(path string) bool {
+	path = strings.TrimSpace(path)
+	path = strings.ReplaceAll(path, "\\", "/")
+	if path == "" {
+		log.Printf("IsValidImagePath: Empty path")
+		return false
+	}
+
 	// Must start with the uploads directory
 	validPrefixes := []string{"/uploads/products/", "/uploads/product/"}
 	hasValidPrefix := false
@@ -223,13 +260,13 @@ func IsValidImagePath(path string) bool {
 	}
 
 	// Must not contain path traversal sequences
-	if strings.Contains(path, "..") || strings.Contains(path, "//") {
+	if strings.Contains(path, "..") || strings.Contains(path, "//") || strings.Contains(path, ":") {
 		log.Printf("IsValidImagePath: Path '%s' contains path traversal sequences", path)
 		return false
 	}
 
 	// Must end with a valid image extension
-	validExtensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp"}
+	validExtensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"}
 	ext := strings.ToLower(filepath.Ext(path))
 	hasValidExtension := false
 	for _, validExt := range validExtensions {
